@@ -1,0 +1,1 @@
+LINK_LENGTH = 6

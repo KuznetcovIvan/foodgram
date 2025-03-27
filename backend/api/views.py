@@ -1,19 +1,28 @@
+import random
+import string
 from django.db.models import BooleanField, Exists, OuterRef, Value
 from djoser.views import UserViewSet as DjoserUserViewSet
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
 from rest_framework.permissions import AllowAny
+from django_filters.rest_framework import DjangoFilterBackend
 
-from users.models import Subscription, User
-from .serializers import UserSerializer, AvatarSerializer
+from users.models import User
+from recipes.models import Tag, Ingredient, Recipe
+from .serializers import (UserSerializer, AvatarSerializer,
+                          TagSerializer, IngredientSerializer,
+                          RecipeSerializer)
+from .filters import RecipeFilter
+from core.constants import LINK_LENGTH
 
 
 class UserViewSet(DjoserUserViewSet):
     serializer_class = UserSerializer
 
     def get_permissions(self):
-        if self.action == 'retrieve':
+        if self.action in ('retrieve', 'list'):
             return (AllowAny(),)
         return super().get_permissions()
 
@@ -21,8 +30,7 @@ class UserViewSet(DjoserUserViewSet):
         queryset = User.objects.all()
         if self.request.user.is_authenticated:
             queryset = queryset.annotate(is_subscribed=Exists(
-                Subscription.objects.filter(
-                    subscriber=self.request.user,
+                self.request.user.following.filter(
                     subscribed_to=OuterRef('pk'))))
         else:
             queryset = queryset.annotate(is_subscribed=Value(
@@ -30,12 +38,12 @@ class UserViewSet(DjoserUserViewSet):
         return queryset
 
     @action(methods=['get'], detail=False)
-    def me(self, request, *args, **kwargs):
+    def me(self, request):
         return Response(self.get_serializer(
             self.get_queryset().get(id=request.user.id)).data)
 
     @action(methods=['put', 'delete'], detail=False, url_path='me/avatar/')
-    def avatar(self, request, *args, **kwargs):
+    def avatar(self, request):
         user = self.get_queryset().get(id=request.user.id)
         if request.method == 'PUT':
             serializer = AvatarSerializer(user, data=request.data)
@@ -45,3 +53,57 @@ class UserViewSet(DjoserUserViewSet):
         if request.method == 'DELETE':
             user.avatar.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class TagViewSet(ReadOnlyModelViewSet):
+    serializer_class = TagSerializer
+    queryset = Tag.objects.all()
+    pagination_class = None
+
+
+class IngredientViewSet(ReadOnlyModelViewSet):
+    serializer_class = IngredientSerializer
+    queryset = Ingredient.objects.all()
+    pagination_class = None
+
+
+class RecipeViewSet(ModelViewSet):
+    serializer_class = RecipeSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filter_set_class = RecipeFilter
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return (AllowAny(),)
+        return super().get_permissions()
+
+    def get_queryset(self):
+        queryset = Recipe.objects.all()
+        if self.request.user.is_authenticated:
+            queryset = queryset.annotate(
+                is_favorited=Exists(
+                    self.request.user.favorites.filter(
+                        recipe=OuterRef('pk'))),
+                is_in_shopping_cart=Exists(
+                    self.request.user.shopping_cart.filter(
+                        recipe=OuterRef('pk'))))
+        else:
+            queryset = queryset.annotate(
+                is_favorited=Value(False, output_field=BooleanField()),
+                is_in_shopping_cart=Value(False, output_field=BooleanField()))
+        return queryset
+
+    @action(methods=['get'], detail=True, url_path='get-link')
+    def get_short_link(self, request, pk):
+        recipe = self.get_object()
+        if recipe.short_link is None:
+            while True:
+                link = ''.join(random.choices(
+                    string.digits + string.ascii_letters, k=LINK_LENGTH))
+                if not Recipe.objects.filter(short_link=link).exists():
+                    recipe.short_link = link
+                    recipe.save(update_fields=('short_link',))
+                    break
+        absolute_uri = request.build_absolute_uri('/')
+        short_link = f'{absolute_uri}s/{recipe.short_link}'
+        return Response({"short-link": short_link}, status=status.HTTP_200_OK)

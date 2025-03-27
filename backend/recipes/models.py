@@ -1,8 +1,9 @@
 from django.contrib.auth import get_user_model
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
+from core.constants import LINK_LENGTH
 
-from users.utils import truncate_string
+from core.utils import truncate_string
 
 User = get_user_model()
 
@@ -10,7 +11,8 @@ User = get_user_model()
 class Tag(models.Model):
     """Модель тега"""
     name = models.CharField('Название', max_length=32, unique=True)
-    slug = models.SlugField('Слаг', max_length=32, unique=True)
+    slug = models.SlugField('Слаг', max_length=32, unique=True,
+                            validators=(RegexValidator(r'^[-a-zA-Z0-9_]+$'),))
 
     class Meta:
         verbose_name = 'тег'
@@ -66,6 +68,8 @@ class Recipe(models.Model):
         validators=[MinValueValidator(1)]
     )
     pub_date = models.DateTimeField('Дата публикации', auto_now_add=True)
+    short_link = models.CharField('Короткая ссылка', max_length=LINK_LENGTH,
+                                  unique=True, blank=True, null=True)
 
     class Meta:
         verbose_name = 'рецепт'
