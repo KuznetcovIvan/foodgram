@@ -1,7 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
-from core.utils import truncate_string
+from .utils import truncate_string
 
 
 class User(AbstractUser):

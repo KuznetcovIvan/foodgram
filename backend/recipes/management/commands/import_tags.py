@@ -1,28 +1,27 @@
 from django.db.utils import IntegrityError
 
-from recipes.models import Ingredient
+from recipes.models import Tag
 from ._base import BaseImportCommand
 
 
 class Command(BaseImportCommand):
-    help = 'Импорт ингредиентов из CSV'
+    help = 'Импорт тегов из CSV'
 
     def handle(self, *args, **options):
         path = options['path']
-        self.stdout.write(f'Импорт ингредиентов из {path}')
-        self.import_data('ingredients.csv', ['name', 'measurement_unit'])
-        self.stdout.write(self.style.SUCCESS('Импорт ингредиентов завершен'))
+        self.stdout.write(f'Импорт тегов из {path}')
+        self.import_data('tags.csv', ['name', 'slug'])
+        self.stdout.write(self.style.SUCCESS('Импорт тегов завершен'))
 
     def process_row(self, row, fields):
         try:
             data = {key: row[key] for key in fields if key in row}
-            ingredient = Ingredient(
-                name=data['name'], measurement_unit=data['measurement_unit'])
-            ingredient.save()
-            return ingredient
+            tag = Tag(name=data['name'], slug=data['slug'])
+            tag.save()
+            return tag
         except IntegrityError:
             self.stdout.write(self.style.WARNING(
-                f'Ингредиент "{data["name"]}" уже существует и был пропущен'))
+                f'Тег "{data["name"]}" уже существует и был пропущен'))
         except KeyError as e:
             self.stdout.write(self.style.WARNING(
                 f'Некорректные данные: отсутствует поле {e}'))
