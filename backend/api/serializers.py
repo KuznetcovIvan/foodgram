@@ -76,6 +76,9 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
                   'name', 'text', 'cooking_time')
         read_only_fields = ('id',)
 
+    def to_representation(self, instance):
+        return RecipeSerializer(instance, context=self.context).data
+
     def save_recipe(self, recipe, validated_data):
         ingredients_data = validated_data.pop('ingredients')
         tags_data = validated_data.pop('tags')
@@ -95,7 +98,8 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
     def to_internal_value(self, data):
         data = dict(data)
         request = self.context.get('request')
-        if request and request.method == 'PATCH' and 'image' not in data:
+        if (request and request.method in ('PATCH', 'PUT')
+                and 'image' not in data):
             data['image'] = self.instance.image
         return super().to_internal_value(data)
 

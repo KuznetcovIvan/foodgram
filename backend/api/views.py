@@ -18,7 +18,7 @@ from .serializers import (UserSerializer, AvatarSerializer,
                           RecipeSerializer, RecipeCreateUpdateSerializer)
 from .filters import RecipeFilter
 from core.constants import LINK_LENGTH
-from permissions import IsAuthorOrReadOnly
+from .permissions import IsAuthorOrReadOnly
 
 
 class UserViewSet(DjoserUserViewSet):
@@ -45,14 +45,15 @@ class UserViewSet(DjoserUserViewSet):
         return Response(self.get_serializer(
             self.get_queryset().get(id=request.user.id)).data)
 
-    @action(methods=['put', 'delete'], detail=False, url_path='me/avatar/')
+    @action(methods=['put', 'delete'], detail=False, url_path='me/avatar')
     def avatar(self, request):
         user = self.get_queryset().get(id=request.user.id)
         if request.method == 'PUT':
             serializer = AvatarSerializer(user, data=request.data)
             serializer.is_valid(raise_exception=True)
             serializer.save()
-            return Response({'avatar': user.avatar}, status=status.HTTP_200_OK)
+            return Response(
+                {'avatar': user.avatar.url}, status=status.HTTP_200_OK)
         if request.method == 'DELETE':
             user.avatar.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
@@ -91,10 +92,10 @@ class RecipeViewSet(ModelViewSet):
                 is_in_shopping_cart=Value(False, output_field=BooleanField()))
         return queryset
 
-    def get_serializer(self):
-        return (RecipeCreateUpdateSerializer if self.action
-                in ('create', 'update', 'partial_update')
-                else RecipeSerializer)
+    def get_serializer_class(self):
+        if self.action in ('create', 'update', 'partial_update'):
+            return RecipeCreateUpdateSerializer
+        return RecipeSerializer
 
     @action(methods=['get'], detail=True, url_path='get-link')
     def get_short_link(self, request, pk):
