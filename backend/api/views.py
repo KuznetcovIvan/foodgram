@@ -8,14 +8,17 @@ from rest_framework import status
 from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
 from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
+from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse
 
 from users.models import User
 from recipes.models import Tag, Ingredient, Recipe
 from .serializers import (UserSerializer, AvatarSerializer,
                           TagSerializer, IngredientSerializer,
-                          RecipeSerializer)
+                          RecipeSerializer, RecipeCreateUpdateSerializer)
 from .filters import RecipeFilter
 from core.constants import LINK_LENGTH
+from permissions import IsAuthorOrReadOnly
 
 
 class UserViewSet(DjoserUserViewSet):
@@ -68,14 +71,9 @@ class IngredientViewSet(ReadOnlyModelViewSet):
 
 
 class RecipeViewSet(ModelViewSet):
-    serializer_class = RecipeSerializer
     filter_backends = (DjangoFilterBackend,)
     filter_set_class = RecipeFilter
-
-    def get_permissions(self):
-        if self.action in ('list', 'retrieve'):
-            return (AllowAny(),)
-        return super().get_permissions()
+    permission_classes = (IsAuthorOrReadOnly,)
 
     def get_queryset(self):
         queryset = Recipe.objects.all()
@@ -93,6 +91,11 @@ class RecipeViewSet(ModelViewSet):
                 is_in_shopping_cart=Value(False, output_field=BooleanField()))
         return queryset
 
+    def get_serializer(self):
+        return (RecipeCreateUpdateSerializer if self.action
+                in ('create', 'update', 'partial_update')
+                else RecipeSerializer)
+
     @action(methods=['get'], detail=True, url_path='get-link')
     def get_short_link(self, request, pk):
         recipe = self.get_object()
@@ -107,3 +110,9 @@ class RecipeViewSet(ModelViewSet):
         absolute_uri = request.build_absolute_uri('/')
         short_link = f'{absolute_uri}s/{recipe.short_link}'
         return Response({"short-link": short_link}, status=status.HTTP_200_OK)
+
+
+def redirect_to_recipe(request, short_link):
+    return redirect(reverse(
+        'recipes-detail',
+        kwargs={'pk': get_object_or_404(Recipe, short_link=short_link).pk}))

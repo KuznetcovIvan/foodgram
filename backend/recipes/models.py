@@ -1,7 +1,8 @@
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
-from core.constants import LINK_LENGTH
+from core.constants import (LINK_LENGTH, MAX_LENGTH_RECIPE_NAME,
+                            MIN_COOKING_TIME, MIN_INGREDIENT_AMOUNT)
 
 from core.utils import truncate_string
 
@@ -49,7 +50,7 @@ class Recipe(models.Model):
         verbose_name='Автор',
         on_delete=models.CASCADE
     )
-    name = models.CharField('Название', max_length=256)
+    name = models.CharField('Название', max_length=MAX_LENGTH_RECIPE_NAME)
     image = models.ImageField('Изображение', upload_to='recipes/images/')
     text = models.TextField('Описание')
     ingredients = models.ManyToManyField(
@@ -65,7 +66,7 @@ class Recipe(models.Model):
     )
     cooking_time = models.PositiveSmallIntegerField(
         'Время приготовления (в минутах)',
-        validators=[MinValueValidator(1)]
+        validators=(MinValueValidator(MIN_COOKING_TIME),)
     )
     pub_date = models.DateTimeField('Дата публикации', auto_now_add=True)
     short_link = models.CharField('Короткая ссылка', max_length=LINK_LENGTH,
@@ -96,7 +97,7 @@ class RecipeIngredient(models.Model):
     )
     amount = models.PositiveIntegerField(
         'Количество',
-        validators=[MinValueValidator(1)]
+        validators=[MinValueValidator(MIN_INGREDIENT_AMOUNT)]
     )
 
     class Meta:

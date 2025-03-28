@@ -1,6 +1,7 @@
 import base64
 from rest_framework import serializers
 from django.core.files.base import ContentFile
+from django.db.models.fields.files import ImageFieldFile
 
 
 class Base64ImageField(serializers.ImageField):
@@ -9,6 +10,8 @@ class Base64ImageField(serializers.ImageField):
             format, imgstr = data.split(';base64,')
             ext = format.split('/')[-1]
             data = ContentFile(base64.b64decode(imgstr), name='temp.' + ext)
+        elif isinstance(data, ImageFieldFile):
+            return data
         return super().to_internal_value(data)
 
     def to_representation(self, value):
