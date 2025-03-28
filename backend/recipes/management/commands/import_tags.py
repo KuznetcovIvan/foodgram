@@ -1,6 +1,7 @@
 from django.db.utils import IntegrityError
 
 from recipes.models import Tag
+
 from ._base import BaseImportCommand
 
 

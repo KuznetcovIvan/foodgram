@@ -1,10 +1,11 @@
 from rest_framework import serializers
 
+from core.constants import (MAX_LENGTH_RECIPE_NAME, MIN_COOKING_TIME,
+                            MIN_INGREDIENT_AMOUNT)
+from recipes.models import Ingredient, Recipe, RecipeIngredient, Tag
 from users.models import User
-from recipes.models import Tag, Ingredient, Recipe, RecipeIngredient
+
 from .fields import Base64ImageField
-from core.constants import (MIN_COOKING_TIME, MIN_INGREDIENT_AMOUNT,
-                            MAX_LENGTH_RECIPE_NAME)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -54,9 +55,6 @@ class RecipeSerializer(serializers.ModelSerializer):
 
 
 class IngredientInRecipeSerializer(serializers.Serializer):
-    """Сериализатор для добавления информации об ингредиенте в рецепте.
-    Используется в RecipeCreateUpdateSerializer для структурирования
-    и валидации данных об ингредиентах, которые передаются в запросах."""
     id = serializers.PrimaryKeyRelatedField(queryset=Ingredient.objects.all())
     amount = serializers.IntegerField(min_value=MIN_INGREDIENT_AMOUNT)
 
@@ -87,13 +85,13 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         recipe.save()
         recipe.tags.set(tags_data)
         recipe.recipe_ingredients.all().delete()
-        for ingredient in ingredients_data:
-            RecipeIngredient.objects.create(
-                recipe=recipe,
-                ingredient=ingredient['id'],
-                amount=ingredient['amount']
-            )
-        return recipe
+
+        recipe_ingredients = [RecipeIngredient(
+            recipe=recipe,
+            ingredient=ingredient['id'],
+            amount=ingredient['amount'])
+            for ingredient in ingredients_data]
+        RecipeIngredient.objects.bulk_create(recipe_ingredients)
 
     def to_internal_value(self, data):
         data = dict(data)

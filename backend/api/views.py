@@ -1,24 +1,33 @@
 import random
 import string
-from django.db.models import BooleanField, Exists, OuterRef, Value
-from djoser.views import UserViewSet as DjoserUserViewSet
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
-from rest_framework.permissions import AllowAny
-from django_filters.rest_framework import DjangoFilterBackend
+
+from django.db.models import BooleanField, Exists, OuterRef, Sum, Value
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
+from django_filters.rest_framework import DjangoFilterBackend
+from djoser.views import UserViewSet as DjoserUserViewSet
+from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
-from users.models import User
-from recipes.models import Tag, Ingredient, Recipe
-from .serializers import (UserSerializer, AvatarSerializer,
-                          TagSerializer, IngredientSerializer,
-                          RecipeSerializer, RecipeCreateUpdateSerializer)
-from .filters import RecipeFilter
 from core.constants import LINK_LENGTH
+from recipes.models import (Ingredient, Recipe, RecipeIngredient, ShoppingCart,
+                            Tag)
+from users.models import User
+
+from .filters import RecipeFilter
 from .permissions import IsAuthorOrReadOnly
+from .serializers import (AvatarSerializer, IngredientSerializer,
+                          RecipeCreateUpdateSerializer, RecipeSerializer,
+                          TagSerializer, UserSerializer)
+
+
+def redirect_to_recipe(request, short_link):
+    return redirect(reverse(
+        'recipes-detail',
+        kwargs={'pk': get_object_or_404(Recipe, short_link=short_link).pk}))
 
 
 class UserViewSet(DjoserUserViewSet):
@@ -40,12 +49,12 @@ class UserViewSet(DjoserUserViewSet):
                 False, output_field=BooleanField()))
         return queryset
 
-    @action(methods=['get'], detail=False)
+    @action(methods=('get',), detail=False)
     def me(self, request):
         return Response(self.get_serializer(
             self.get_queryset().get(id=request.user.id)).data)
 
-    @action(methods=['put', 'delete'], detail=False, url_path='me/avatar')
+    @action(methods=('put', 'delete'), detail=False, url_path='me/avatar')
     def avatar(self, request):
         user = self.get_queryset().get(id=request.user.id)
         if request.method == 'PUT':
@@ -97,7 +106,7 @@ class RecipeViewSet(ModelViewSet):
             return RecipeCreateUpdateSerializer
         return RecipeSerializer
 
-    @action(methods=['get'], detail=True, url_path='get-link')
+    @action(methods=('get',), detail=True, url_path='get-link')
     def get_short_link(self, request, pk):
         recipe = self.get_object()
         if recipe.short_link is None:
@@ -112,8 +121,21 @@ class RecipeViewSet(ModelViewSet):
         short_link = f'{absolute_uri}s/{recipe.short_link}'
         return Response({"short-link": short_link}, status=status.HTTP_200_OK)
 
-
-def redirect_to_recipe(request, short_link):
-    return redirect(reverse(
-        'recipes-detail',
-        kwargs={'pk': get_object_or_404(Recipe, short_link=short_link).pk}))
+    @action(methods=('get',), detail=False,
+            permission_classes=(IsAuthenticated,))
+    def download_shopping_car(self, request):
+        user_recipes_in_cart = (
+            ShoppingCart.objects
+            .filter(user=self.request.user)
+            .values_list('recipe', flat=True)
+        )
+        ingredients = (
+            RecipeIngredient.objects
+            .filter(recipe__in=user_recipes_in_cart)
+        )
+        product_list = list(
+            ingredients
+            .values('ingredient__name', 'ingredient__measurement_unit')
+            .annotate(total_amount=Sum('amount'))
+            .order_by('ingredient__name')
+        )
