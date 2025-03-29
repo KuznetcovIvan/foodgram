@@ -1,7 +1,12 @@
 import random
 import string
+from datetime import datetime as dt
 
+from django.core.exceptions import ObjectDoesNotExist
+from rest_framework.filters import SearchFilter
+from django.db import IntegrityError
 from django.db.models import BooleanField, Exists, OuterRef, Sum, Value
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django_filters.rest_framework import DjangoFilterBackend
@@ -13,15 +18,17 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
 from core.constants import LINK_LENGTH
+from core.utils import get_shopping_cart_pdf
 from recipes.models import (Ingredient, Recipe, RecipeIngredient, ShoppingCart,
                             Tag)
 from users.models import User
 
-from .filters import RecipeFilter
+from .filters import RecipeFilter, IngredientFilter
 from .permissions import IsAuthorOrReadOnly
 from .serializers import (AvatarSerializer, IngredientSerializer,
                           RecipeCreateUpdateSerializer, RecipeSerializer,
-                          TagSerializer, UserSerializer)
+                          ShoppingCartSerializer, TagSerializer,
+                          UserSerializer)
 
 
 def redirect_to_recipe(request, short_link):
@@ -49,12 +56,12 @@ class UserViewSet(DjoserUserViewSet):
                 False, output_field=BooleanField()))
         return queryset
 
-    @action(methods=('get',), detail=False)
+    @action(methods=('GET',), detail=False)
     def me(self, request):
         return Response(self.get_serializer(
             self.get_queryset().get(id=request.user.id)).data)
 
-    @action(methods=('put', 'delete'), detail=False, url_path='me/avatar')
+    @action(methods=('PUT', 'DELETE'), detail=False, url_path='me/avatar')
     def avatar(self, request):
         user = self.get_queryset().get(id=request.user.id)
         if request.method == 'PUT':
@@ -78,6 +85,8 @@ class IngredientViewSet(ReadOnlyModelViewSet):
     serializer_class = IngredientSerializer
     queryset = Ingredient.objects.all()
     pagination_class = None
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = IngredientFilter
 
 
 class RecipeViewSet(ModelViewSet):
@@ -106,7 +115,7 @@ class RecipeViewSet(ModelViewSet):
             return RecipeCreateUpdateSerializer
         return RecipeSerializer
 
-    @action(methods=('get',), detail=True, url_path='get-link')
+    @action(methods=('GET',), detail=True, url_path='get-link')
     def get_short_link(self, request, pk):
         recipe = self.get_object()
         if recipe.short_link is None:
@@ -121,21 +130,46 @@ class RecipeViewSet(ModelViewSet):
         short_link = f'{absolute_uri}s/{recipe.short_link}'
         return Response({"short-link": short_link}, status=status.HTTP_200_OK)
 
-    @action(methods=('get',), detail=False,
+    @action(methods=('GET',), detail=False,
             permission_classes=(IsAuthenticated,))
-    def download_shopping_car(self, request):
+    def download_shopping_cart(self, request):
         user_recipes_in_cart = (
             ShoppingCart.objects
             .filter(user=self.request.user)
             .values_list('recipe', flat=True)
         )
-        ingredients = (
+        product_list = list(
             RecipeIngredient.objects
             .filter(recipe__in=user_recipes_in_cart)
-        )
-        product_list = list(
-            ingredients
             .values('ingredient__name', 'ingredient__measurement_unit')
             .annotate(total_amount=Sum('amount'))
             .order_by('ingredient__name')
         )
+        date = dt.now()
+        return FileResponse(
+            get_shopping_cart_pdf(product_list, date, request),
+            as_attachment=True,
+            filename='to_buy_{}.pdf'.format(date.strftime('%d_%m_%Y')))
+
+    @action(methods=('POST', 'DELETE'), detail=True)
+    def shopping_cart(self, request, pk):
+        recipe = self.get_object()
+        if request.method == 'POST':
+            try:
+                ShoppingCart.objects.create(
+                    user=self.request.user, recipe=recipe)
+            except IntegrityError:
+                return Response(
+                    {'detail': 'Рецепт уже в списке покупок'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            return Response(ShoppingCartSerializer(recipe).data,
+                            status=status.HTTP_201_CREATED)
+        try:
+            ShoppingCart.objects.get(
+                user=self.request.user, recipe=recipe).delete()
+        except ObjectDoesNotExist:
+            return Response({'detail': 'Рецепта нет в списке покупок'},
+                            status=status.HTTP_400_BAD_REQUEST
+                            )
+        return Response(status=status.HTTP_204_NO_CONTENT)

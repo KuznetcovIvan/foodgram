@@ -40,7 +40,7 @@ class IngredientSerializer(serializers.ModelSerializer):
 
 
 class RecipeSerializer(serializers.ModelSerializer):
-    id = serializers.CharField(read_only=True)
+    id = serializers.IntegerField(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     author = UserSerializer(read_only=True)
     ingredients = IngredientSerializer(many=True, read_only=True)
@@ -60,13 +60,15 @@ class IngredientInRecipeSerializer(serializers.Serializer):
 
 
 class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
-    ingredients = IngredientInRecipeSerializer(many=True)
+    ingredients = IngredientInRecipeSerializer(many=True, required=True)
     tags = serializers.PrimaryKeyRelatedField(
-        queryset=Tag.objects.all(), many=True)
-    image = Base64ImageField()
-    name = serializers.CharField(max_length=MAX_LENGTH_RECIPE_NAME)
-    text = serializers.CharField()
-    cooking_time = serializers.IntegerField(min_value=MIN_COOKING_TIME)
+        queryset=Tag.objects.all(), many=True, required=True)
+    image = Base64ImageField(required=True)
+    name = serializers.CharField(
+        max_length=MAX_LENGTH_RECIPE_NAME, required=True)
+    text = serializers.CharField(required=True)
+    cooking_time = serializers.IntegerField(
+        min_value=MIN_COOKING_TIME, required=True)
 
     class Meta:
         model = Recipe
@@ -92,6 +94,7 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
             amount=ingredient['amount'])
             for ingredient in ingredients_data]
         RecipeIngredient.objects.bulk_create(recipe_ingredients)
+        return recipe
 
     def to_internal_value(self, data):
         data = dict(data)
@@ -113,3 +116,9 @@ class RecipeGetShortLinkSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         fields = ('short_link',)
+
+
+class ShoppingCartSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Recipe
+        fields = ('id', 'name', 'image', 'cooking_time')
