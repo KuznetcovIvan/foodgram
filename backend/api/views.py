@@ -3,7 +3,6 @@ import string
 from datetime import datetime as dt
 
 from django.core.exceptions import ObjectDoesNotExist
-from rest_framework.filters import SearchFilter
 from django.db import IntegrityError
 from django.db.models import BooleanField, Exists, OuterRef, Sum, Value
 from django.http import FileResponse
@@ -19,16 +18,17 @@ from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
 from core.constants import LINK_LENGTH
 from core.utils import get_shopping_cart_pdf
-from recipes.models import (Ingredient, Recipe, RecipeIngredient, ShoppingCart,
-                            Tag)
-from users.models import User
+from recipes.models import (Favorite, Ingredient, Recipe, RecipeIngredient,
+                            ShoppingCart, Tag)
+from users.models import Subscription, User
 
-from .filters import RecipeFilter, IngredientFilter
+from .filters import IngredientFilter, RecipeFilter
 from .permissions import IsAuthorOrReadOnly
 from .serializers import (AvatarSerializer, IngredientSerializer,
-                          RecipeCreateUpdateSerializer, RecipeSerializer,
-                          ShoppingCartSerializer, TagSerializer,
-                          UserSerializer)
+                          RecipeCreateSerializer, RecipeSerializer,
+                          RecipeUpdateSerializer, ShoppingCartSerializer,
+                          TagSerializer, UserSerializer,
+                          UserWithRecipesSerializer)
 
 
 def redirect_to_recipe(request, short_link):
@@ -74,6 +74,46 @@ class UserViewSet(DjoserUserViewSet):
             user.avatar.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(methods=('GET',), detail=False,
+            permission_classes=(IsAuthenticated,))
+    def subscriptions(self, request):
+        return Response(UserWithRecipesSerializer(
+            self.get_queryset().filter(
+                id__in=Subscription.objects.filter(
+                    subscriber=request.user).values('subscribed_to')),
+            many=True, context={'request': request}).data)
+
+    @action(methods=('POST', 'DELETE'), detail=True,
+            permission_classes=(IsAuthenticated,))
+    def subscribe(self, request, id):
+        user = self.request.user
+        target_user = get_object_or_404(User, id=id)
+        if user == target_user:
+            return Response(
+                {'detail': 'Нельзя подписаться на себя'},
+                status=status.HTTP_400_BAD_REQUEST)
+        if request.method == 'POST':
+            try:
+                Subscription.objects.create(
+                    subscriber=user, subscribed_to=target_user)
+                return Response(UserWithRecipesSerializer(
+                    target_user, context={'request': request}).data,
+                    status=status.HTTP_201_CREATED)
+            except IntegrityError:
+                return Response(
+                    {'detail': 'Вы уже подписаны на этого пользователя'},
+                    status=status.HTTP_400_BAD_REQUEST)
+        if request.method == 'DELETE':
+            try:
+                Subscription.objects.get(
+                    subscriber=user, subscribed_to=target_user).delete()
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            except ObjectDoesNotExist:
+                return Response(
+                    {'detail': 'Вы не подписаны на этого пользователя'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
 
 class TagViewSet(ReadOnlyModelViewSet):
     serializer_class = TagSerializer
@@ -111,8 +151,10 @@ class RecipeViewSet(ModelViewSet):
         return queryset
 
     def get_serializer_class(self):
-        if self.action in ('create', 'update', 'partial_update'):
-            return RecipeCreateUpdateSerializer
+        if self.action in ('create', 'partial_update'):
+            return RecipeCreateSerializer
+        elif self.action == 'update':
+            return RecipeUpdateSerializer
         return RecipeSerializer
 
     @action(methods=('GET',), detail=True, url_path='get-link')
@@ -152,7 +194,7 @@ class RecipeViewSet(ModelViewSet):
             filename='to_buy_{}.pdf'.format(date.strftime('%d_%m_%Y')))
 
     @action(methods=('POST', 'DELETE'), detail=True)
-    def shopping_cart(self, request, pk):
+    def shopping_cart(self, request, id):
         recipe = self.get_object()
         if request.method == 'POST':
             try:
@@ -161,15 +203,34 @@ class RecipeViewSet(ModelViewSet):
             except IntegrityError:
                 return Response(
                     {'detail': 'Рецепт уже в списке покупок'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                    status=status.HTTP_400_BAD_REQUEST)
             return Response(ShoppingCartSerializer(recipe).data,
                             status=status.HTTP_201_CREATED)
         try:
             ShoppingCart.objects.get(
                 user=self.request.user, recipe=recipe).delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
         except ObjectDoesNotExist:
             return Response({'detail': 'Рецепта нет в списке покупок'},
-                            status=status.HTTP_400_BAD_REQUEST
-                            )
-        return Response(status=status.HTTP_204_NO_CONTENT)
+                            status=status.HTTP_400_BAD_REQUEST)
+
+    @action(methods=('POST', 'DELETE'), detail=True)
+    def favorite(self, request, id):
+        recipe = self.get_object()
+        if request.method == 'POST':
+            try:
+                Favorite.objects.create(
+                    user=self.request.user, recipe=recipe)
+                return Response(
+                    ShoppingCartSerializer(recipe).data,
+                    status=status.HTTP_201_CREATED)
+            except IntegrityError:
+                return Response(
+                    {'detail': 'Рецепт уже в избранном'},
+                    status=status.HTTP_400_BAD_REQUEST)
+        try:
+            Favorite.objects.get(user=request.user, recipe=recipe).delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except ObjectDoesNotExist:
+            return Response({'detail': 'Рецепта нет в избранном'},
+                            status=status.HTTP_400_BAD_REQUEST)

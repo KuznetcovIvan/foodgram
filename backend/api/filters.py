@@ -1,8 +1,8 @@
 from django_filters import (BooleanFilter, ModelChoiceFilter,
                             ModelMultipleChoiceFilter)
-from django_filters.rest_framework import FilterSet, CharFilter
+from django_filters.rest_framework import CharFilter, FilterSet
 
-from recipes.models import Recipe, Tag, Ingredient
+from recipes.models import Ingredient, Recipe, Tag
 from users.models import User
 
 

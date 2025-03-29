@@ -17,6 +17,22 @@ class UserSerializer(serializers.ModelSerializer):
                   'last_name', 'is_subscribed', 'avatar')
 
 
+class ShoppingCartSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Recipe
+        fields = ('id', 'name', 'image', 'cooking_time')
+
+
+class UserWithRecipesSerializer(UserSerializer):
+    recipes = ShoppingCartSerializer(
+        many=True, source='recipes', read_only=True)
+    recipes_count = serializers.IntegerField(
+        source='recipes.count', read_only=True)
+
+    class Meta(UserSerializer.Meta):
+        fields = UserSerializer.Meta.fields + ('recipes', 'recipes_count')
+
+
 class AvatarSerializer(serializers.ModelSerializer):
     avatar = Base64ImageField()
 
@@ -59,7 +75,7 @@ class IngredientInRecipeSerializer(serializers.Serializer):
     amount = serializers.IntegerField(min_value=MIN_INGREDIENT_AMOUNT)
 
 
-class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
+class RecipeCreateSerializer(serializers.ModelSerializer):
     ingredients = IngredientInRecipeSerializer(many=True, required=True)
     tags = serializers.PrimaryKeyRelatedField(
         queryset=Tag.objects.all(), many=True, required=True)
@@ -75,6 +91,34 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         fields = ('id', 'ingredients', 'tags', 'image',
                   'name', 'text', 'cooking_time')
         read_only_fields = ('id',)
+
+    def validate_ingredients(self, ingredients):
+        if not ingredients:
+            raise serializers.ValidationError(
+                'Список ингредиентов не может быть пустым')
+        ingredient_ids = [ingredient['id'].id for ingredient in ingredients]
+        if len(ingredient_ids) != len(set(ingredient_ids)):
+            raise serializers.ValidationError(
+                'Ингредиенты не должны повторяться')
+        return ingredients
+
+    def validate_tags(self, tags):
+        if not tags:
+            raise serializers.ValidationError(
+                'Список тегов не может быть пустым')
+        if len(tags) != len(set(tags)):
+            raise serializers.ValidationError('Теги не должны повторяться')
+        return tags
+
+    def validate(self, data):
+        if 'tags' not in data:
+            raise serializers.ValidationError(
+                'Поле tags отсутствует в запросе')
+        if 'ingredients' not in data:
+            raise serializers.ValidationError(
+                'Поле ingredients отсутствует в запросе')
+
+        return data
 
     def to_representation(self, instance):
         return RecipeSerializer(instance, context=self.context).data
@@ -96,29 +140,22 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         RecipeIngredient.objects.bulk_create(recipe_ingredients)
         return recipe
 
-    def to_internal_value(self, data):
-        data = dict(data)
-        request = self.context.get('request')
-        if (request and request.method in ('PATCH', 'PUT')
-                and 'image' not in data):
-            data['image'] = self.instance.image
-        return super().to_internal_value(data)
-
     def create(self, validated_data):
         recipe = Recipe(author=self.context['request'].user)
         return self.save_recipe(recipe, validated_data)
 
+
+class RecipeUpdateSerializer(RecipeCreateSerializer):
+    image = Base64ImageField(required=False)
+
     def update(self, instance, validated_data):
         return self.save_recipe(instance, validated_data)
+
+    class Meta(RecipeCreateSerializer.Meta):
+        pass
 
 
 class RecipeGetShortLinkSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         fields = ('short_link',)
-
-
-class ShoppingCartSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Recipe
-        fields = ('id', 'name', 'image', 'cooking_time')
