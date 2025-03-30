@@ -9,12 +9,17 @@ from .fields import Base64ImageField
 
 
 class UserSerializer(serializers.ModelSerializer):
-    is_subscribed = serializers.BooleanField(read_only=True)
+    is_subscribed = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ('email', 'id', 'username', 'first_name',
                   'last_name', 'is_subscribed', 'avatar')
+
+    def get_is_subscribed(self, obj):
+        request = self.context.get('request')
+        return (request.user.is_authenticated
+                and request.user.following.filter(subscribed_to=obj).exists())
 
 
 class ShoppingCartSerializer(serializers.ModelSerializer):
@@ -25,7 +30,7 @@ class ShoppingCartSerializer(serializers.ModelSerializer):
 
 class UserWithRecipesSerializer(UserSerializer):
     recipes = ShoppingCartSerializer(
-        many=True, source='recipes', read_only=True)
+        many=True, read_only=True)
     recipes_count = serializers.IntegerField(
         source='recipes.count', read_only=True)
 
@@ -134,30 +139,26 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
         return data
 
     def to_representation(self, instance):
-        user = self.context['request'].user
         instance.is_favorited = getattr(
             instance, 'is_favorited', False)
         instance.is_in_shopping_cart = getattr(
             instance, 'is_in_shopping_cart', False)
-        instance.author.is_subscribed = (
-            user.is_authenticated
-            and user.following.filter(subscribed_to=instance.author).exists())
         return RecipeSerializer(instance, context=self.context).data
 
     def save_recipe(self, recipe, validated_data):
-        ingredients_data = validated_data.pop('ingredients')
-        tags_data = validated_data.pop('tags')
+        ingredients = validated_data.pop('ingredients')
+        tags = validated_data.pop('tags')
         for attr, value in validated_data.items():
             setattr(recipe, attr, value)
         recipe.save()
-        recipe.tags.set(tags_data)
+        recipe.tags.set(tags)
         recipe.recipe_ingredients.all().delete()
 
         recipe_ingredients = [RecipeIngredient(
             recipe=recipe,
             ingredient=ingredient['id'],
             amount=ingredient['amount'])
-            for ingredient in ingredients_data]
+            for ingredient in ingredients]
         RecipeIngredient.objects.bulk_create(recipe_ingredients)
         return recipe
 
@@ -165,12 +166,12 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
         recipe = Recipe(author=self.context['request'].user)
         return self.save_recipe(recipe, validated_data)
 
+    def update(self, instance, validated_data):
+        return self.save_recipe(instance, validated_data)
+
 
 class RecipeUpdateSerializer(RecipeCreateSerializer):
     image = Base64ImageField(required=False)
-
-    def update(self, instance, validated_data):
-        return self.save_recipe(instance, validated_data)
 
     class Meta(RecipeCreateSerializer.Meta):
         pass

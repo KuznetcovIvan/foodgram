@@ -9,11 +9,11 @@ from users.models import User
 class RecipeFilter(FilterSet):
     is_favorited = BooleanFilter()
     is_in_shopping_cart = BooleanFilter()
-    author = ModelChoiceFilter(queryset=User.objects.all())
+    author = ModelChoiceFilter(queryset=User.objects.all(), to_field_name='id')
     tags = ModelMultipleChoiceFilter(
         field_name='tags__slug',
         to_field_name='slug',
-        queryset=Tag.objects.all()
+        queryset=Tag.objects.all(),
     )
 
     class Meta:

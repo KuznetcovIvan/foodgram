@@ -39,22 +39,12 @@ def redirect_to_recipe(request, short_link):
 
 class UserViewSet(DjoserUserViewSet):
     serializer_class = UserSerializer
+    queryset = User.objects.all()
 
     def get_permissions(self):
         if self.action in ('retrieve', 'list'):
             return (AllowAny(),)
         return super().get_permissions()
-
-    def get_queryset(self):
-        queryset = User.objects.all()
-        if self.request.user.is_authenticated:
-            queryset = queryset.annotate(is_subscribed=Exists(
-                self.request.user.following.filter(
-                    subscribed_to=OuterRef('pk'))))
-        else:
-            queryset = queryset.annotate(is_subscribed=Value(
-                False, output_field=BooleanField()))
-        return queryset
 
     @action(methods=('GET',), detail=False)
     def me(self, request):
@@ -131,7 +121,7 @@ class IngredientViewSet(ReadOnlyModelViewSet):
 
 class RecipeViewSet(ModelViewSet):
     filter_backends = (DjangoFilterBackend,)
-    filter_set_class = RecipeFilter
+    filterset_class = RecipeFilter
     permission_classes = (IsAuthorOrReadOnly,)
 
     def get_queryset(self):
