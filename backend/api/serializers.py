@@ -55,11 +55,24 @@ class IngredientSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class RecipeIngredientSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(source='ingredient.id', read_only=True)
+    name = serializers.CharField(source='ingredient.name', read_only=True)
+    measurement_unit = serializers.CharField(
+        source='ingredient.measurement_unit', read_only=True)
+    amount = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = RecipeIngredient
+        fields = ('id', 'name', 'measurement_unit', 'amount')
+
+
 class RecipeSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     author = UserSerializer(read_only=True)
-    ingredients = IngredientSerializer(many=True, read_only=True)
+    ingredients = RecipeIngredientSerializer(
+        source='recipe_ingredients', many=True, read_only=True)
     is_favorited = serializers.BooleanField(read_only=True)
     is_in_shopping_cart = serializers.BooleanField(read_only=True)
 
@@ -121,6 +134,14 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
         return data
 
     def to_representation(self, instance):
+        user = self.context['request'].user
+        instance.is_favorited = getattr(
+            instance, 'is_favorited', False)
+        instance.is_in_shopping_cart = getattr(
+            instance, 'is_in_shopping_cart', False)
+        instance.author.is_subscribed = (
+            user.is_authenticated
+            and user.following.filter(subscribed_to=instance.author).exists())
         return RecipeSerializer(instance, context=self.context).data
 
     def save_recipe(self, recipe, validated_data):
