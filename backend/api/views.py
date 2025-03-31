@@ -35,7 +35,19 @@ def redirect_to_recipe(request, pk):
 
 class UserViewSet(DjoserUserViewSet):
     serializer_class = UserSerializer
-    queryset = User.objects.all()
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = User.objects.all()
+        if user.is_authenticated:
+            queryset = queryset.annotate(
+                is_subscribed=Exists(
+                    Subscription.objects.filter(
+                        subscriber=user, subscribed_to=OuterRef('id'))))
+        else:
+            queryset = queryset.annotate(
+                is_subscribed=Value(False, output_field=BooleanField()))
+        return queryset
 
     def get_permissions(self):
         if self.action in ('retrieve', 'list'):
