@@ -1,4 +1,4 @@
-from django_filters import (BooleanFilter, ModelChoiceFilter,
+from django_filters import (NumberFilter, ModelChoiceFilter,
                             ModelMultipleChoiceFilter)
 from django_filters.rest_framework import CharFilter, FilterSet
 
@@ -7,8 +7,8 @@ from users.models import User
 
 
 class RecipeFilter(FilterSet):
-    is_favorited = BooleanFilter()
-    is_in_shopping_cart = BooleanFilter()
+    is_favorited = NumberFilter()
+    is_in_shopping_cart = NumberFilter()
     author = ModelChoiceFilter(queryset=User.objects.all(), to_field_name='id')
     tags = ModelMultipleChoiceFilter(
         field_name='tags__slug',

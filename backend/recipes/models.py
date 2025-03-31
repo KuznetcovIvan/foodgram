@@ -2,8 +2,8 @@ from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
 
-from core.constants import (MAX_LENGTH_RECIPE_NAME,
-                            MIN_COOKING_TIME, MIN_INGREDIENT_AMOUNT)
+from core.constants import (MAX_LENGTH_RECIPE_NAME, MIN_COOKING_TIME,
+                            MIN_INGREDIENT_AMOUNT)
 from core.utils import truncate_string
 
 User = get_user_model()
@@ -69,7 +69,6 @@ class Recipe(models.Model):
         validators=(MinValueValidator(MIN_COOKING_TIME),)
     )
     pub_date = models.DateTimeField('Дата публикации', auto_now_add=True)
-
 
     class Meta:
         verbose_name = 'рецепт'

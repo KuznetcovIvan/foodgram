@@ -67,11 +67,20 @@ class UserViewSet(DjoserUserViewSet):
             id__in=Subscription.objects.filter(subscriber=request.user).values(
                 'subscribed_to'))
         page = self.paginate_queryset(subscriptions)
+        limit = request.query_params.get('recipes_limit')
         if page is not None:
-            return self.get_paginated_response(UserWithRecipesSerializer(
-                page, many=True, context={'request': request}).data)
-        return Response(UserWithRecipesSerializer(
-            subscriptions, many=True, context={'request': request}).data)
+            serializer = UserWithRecipesSerializer(
+                page, many=True, context={'request': request})
+            if limit:
+                for user_data in serializer.data:
+                    user_data['recipes'] = user_data['recipes'][:int(limit)]
+            return self.get_paginated_response(serializer.data)
+        serializer = UserWithRecipesSerializer(
+            subscriptions, many=True, context={'request': request})
+        if limit:
+            for user_data in serializer.data:
+                user_data['recipes'] = user_data['recipes'][:int(limit)]
+        return Response(serializer.data)
 
     @action(methods=('POST', 'DELETE'),
             detail=True, permission_classes=(IsAuthenticated,))
@@ -183,8 +192,9 @@ class RecipeViewSet(ModelViewSet):
             as_attachment=True,
             filename='to_buy_{}.pdf'.format(date.strftime('%d_%m_%Y')))
 
-    @action(methods=('POST', 'DELETE'), detail=True)
-    def shopping_cart(self, request, id):
+    @action(methods=('POST', 'DELETE'), detail=True,
+            permission_classes=(IsAuthenticated,))
+    def shopping_cart(self, request, pk):
         recipe = self.get_object()
         if request.method == 'POST':
             try:
@@ -204,8 +214,9 @@ class RecipeViewSet(ModelViewSet):
             return Response({'detail': 'Рецепта нет в списке покупок'},
                             status=status.HTTP_400_BAD_REQUEST)
 
-    @action(methods=('POST', 'DELETE'), detail=True)
-    def favorite(self, request, id):
+    @action(methods=('POST', 'DELETE'), detail=True,
+            permission_classes=(IsAuthenticated,))
+    def favorite(self, request, pk):
         recipe = self.get_object()
         if request.method == 'POST':
             try:
