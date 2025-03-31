@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
 
-from core.constants import (LINK_LENGTH, MAX_LENGTH_RECIPE_NAME,
+from core.constants import (MAX_LENGTH_RECIPE_NAME,
                             MIN_COOKING_TIME, MIN_INGREDIENT_AMOUNT)
 from core.utils import truncate_string
 
@@ -69,8 +69,7 @@ class Recipe(models.Model):
         validators=(MinValueValidator(MIN_COOKING_TIME),)
     )
     pub_date = models.DateTimeField('Дата публикации', auto_now_add=True)
-    short_link = models.CharField('Короткая ссылка', max_length=LINK_LENGTH,
-                                  unique=True, blank=True, null=True)
+
 
     class Meta:
         verbose_name = 'рецепт'

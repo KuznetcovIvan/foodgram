@@ -177,7 +177,3 @@ class RecipeUpdateSerializer(RecipeCreateSerializer):
         pass
 
 
-class RecipeGetShortLinkSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Recipe
-        fields = ('short_link',)

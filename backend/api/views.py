@@ -1,5 +1,3 @@
-import random
-import string
 from datetime import datetime as dt
 
 from django.core.exceptions import ObjectDoesNotExist
@@ -16,7 +14,6 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
-from core.constants import LINK_LENGTH
 from core.utils import get_shopping_cart_pdf
 from recipes.models import (Favorite, Ingredient, Recipe, RecipeIngredient,
                             ShoppingCart, Tag)
@@ -31,10 +28,9 @@ from .serializers import (AvatarSerializer, IngredientSerializer,
                           UserWithRecipesSerializer)
 
 
-def redirect_to_recipe(request, short_link):
+def redirect_to_recipe(request, pk):
     return redirect(reverse(
-        'recipes-detail',
-        kwargs={'pk': get_object_or_404(Recipe, short_link=short_link).pk}))
+        'recipes-detail', kwargs={'pk': get_object_or_404(Recipe, pk=pk)}))
 
 
 class UserViewSet(DjoserUserViewSet):
@@ -67,14 +63,18 @@ class UserViewSet(DjoserUserViewSet):
     @action(methods=('GET',), detail=False,
             permission_classes=(IsAuthenticated,))
     def subscriptions(self, request):
+        subscriptions = self.get_queryset().prefetch_related('recipes').filter(
+            id__in=Subscription.objects.filter(subscriber=request.user).values(
+                'subscribed_to'))
+        page = self.paginate_queryset(subscriptions)
+        if page is not None:
+            return self.get_paginated_response(UserWithRecipesSerializer(
+                page, many=True, context={'request': request}).data)
         return Response(UserWithRecipesSerializer(
-            self.get_queryset().filter(
-                id__in=Subscription.objects.filter(
-                    subscriber=request.user).values('subscribed_to')),
-            many=True, context={'request': request}).data)
+            subscriptions, many=True, context={'request': request}).data)
 
-    @action(methods=('POST', 'DELETE'), detail=True,
-            permission_classes=(IsAuthenticated,))
+    @action(methods=('POST', 'DELETE'),
+            detail=True, permission_classes=(IsAuthenticated,))
     def subscribe(self, request, id):
         user = self.request.user
         target_user = get_object_or_404(User, id=id)
@@ -86,9 +86,16 @@ class UserViewSet(DjoserUserViewSet):
             try:
                 Subscription.objects.create(
                     subscriber=user, subscribed_to=target_user)
-                return Response(UserWithRecipesSerializer(
-                    target_user, context={'request': request}).data,
-                    status=status.HTTP_201_CREATED)
+                limit = request.query_params.get('recipes_limit')
+                serializer = UserWithRecipesSerializer(
+                    target_user, context={'request': request})
+                data = serializer.data
+                if limit:
+                    data['recipes'] = ShoppingCartSerializer(
+                        target_user.recipes.all()[:int(limit)],
+                        many=True,
+                        context={'request': request}).data
+                return Response(data, status=status.HTTP_201_CREATED)
             except IntegrityError:
                 return Response(
                     {'detail': 'Вы уже подписаны на этого пользователя'},
@@ -101,8 +108,7 @@ class UserViewSet(DjoserUserViewSet):
             except ObjectDoesNotExist:
                 return Response(
                     {'detail': 'Вы не подписаны на этого пользователя'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                    status=status.HTTP_400_BAD_REQUEST)
 
 
 class TagViewSet(ReadOnlyModelViewSet):
@@ -125,7 +131,10 @@ class RecipeViewSet(ModelViewSet):
     permission_classes = (IsAuthorOrReadOnly,)
 
     def get_queryset(self):
-        queryset = Recipe.objects.all()
+        queryset = (
+            Recipe.objects
+            .select_related('author')
+            .prefetch_related('tags', 'recipe_ingredients__ingredient'))
         if self.request.user.is_authenticated:
             queryset = queryset.annotate(
                 is_favorited=Exists(
@@ -149,18 +158,9 @@ class RecipeViewSet(ModelViewSet):
 
     @action(methods=('GET',), detail=True, url_path='get-link')
     def get_short_link(self, request, pk):
-        recipe = self.get_object()
-        if recipe.short_link is None:
-            while True:
-                link = ''.join(random.choices(
-                    string.digits + string.ascii_letters, k=LINK_LENGTH))
-                if not Recipe.objects.filter(short_link=link).exists():
-                    recipe.short_link = link
-                    recipe.save(update_fields=('short_link',))
-                    break
-        absolute_uri = request.build_absolute_uri('/')
-        short_link = f'{absolute_uri}s/{recipe.short_link}'
-        return Response({"short-link": short_link}, status=status.HTTP_200_OK)
+        return Response({'short-link': '{}s/{}'.format(
+            request.build_absolute_uri('/'), self.get_object().id)},
+            status=status.HTTP_200_OK)
 
     @action(methods=('GET',), detail=False,
             permission_classes=(IsAuthenticated,))
