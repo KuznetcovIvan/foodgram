@@ -170,5 +170,3 @@ class RecipeUpdateSerializer(RecipeCreateSerializer):
 
     class Meta(RecipeCreateSerializer.Meta):
         pass
-
-

@@ -1,5 +1,6 @@
 from io import BytesIO
 
+from babel.dates import format_date
 from reportlab.pdfbase.pdfmetrics import registerFont
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen.canvas import Canvas
@@ -18,9 +19,10 @@ def get_shopping_cart_pdf(product_list, date, request):
     registerFont(TTFont(
         'DejaVuSansMono', 'static/fonts/DejaVuSansMono-Oblique.ttf'))
     p.setFont('DejaVuSansMono', 14)
+    date = format_date(date, format='d MMMM yyyy', locale='ru')
+
     y = 800
-    p.drawString(100, y, 'Список покупок на {} г.:'.format(
-        date.strftime('%d %B %Y')))
+    p.drawString(100, y, f'Список покупок на {date} г.:')
     y -= 20
     p.drawString(100, y, '{}'.format('*' * 50))
     y -= 20

@@ -1,5 +1,5 @@
-from django_filters import (NumberFilter, ModelChoiceFilter,
-                            ModelMultipleChoiceFilter)
+from django_filters import (ModelChoiceFilter, ModelMultipleChoiceFilter,
+                            NumberFilter)
 from django_filters.rest_framework import CharFilter, FilterSet
 
 from recipes.models import Ingredient, Recipe, Tag

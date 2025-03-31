@@ -79,7 +79,7 @@ class UserViewSet(DjoserUserViewSet):
             id__in=Subscription.objects.filter(subscriber=request.user).values(
                 'subscribed_to'))
         page = self.paginate_queryset(subscriptions)
-        limit = request.query_params.get('recipes_limit')
+        limit = self.request.query_params.get('recipes_limit')
         if page is not None:
             serializer = UserWithRecipesSerializer(
                 page, many=True, context={'request': request})
@@ -107,7 +107,7 @@ class UserViewSet(DjoserUserViewSet):
             try:
                 Subscription.objects.create(
                     subscriber=user, subscribed_to=target_user)
-                limit = request.query_params.get('recipes_limit')
+                limit = self.request.query_params.get('recipes_limit')
                 serializer = UserWithRecipesSerializer(
                     target_user, context={'request': request})
                 data = serializer.data
