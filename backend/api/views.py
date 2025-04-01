@@ -204,46 +204,39 @@ class RecipeViewSet(ModelViewSet):
             as_attachment=True,
             filename='to_buy_{}.pdf'.format(date.strftime('%d_%m_%Y')))
 
-    @action(methods=('POST', 'DELETE'), detail=True,
-            permission_classes=(IsAuthenticated,))
-    def shopping_cart(self, request, pk):
+    def handle_recipe(self, request, model, exists_message, not_found_message):
         recipe = self.get_object()
         if request.method == 'POST':
             try:
-                ShoppingCart.objects.create(
-                    user=self.request.user, recipe=recipe)
-            except IntegrityError:
-                return Response(
-                    {'detail': 'Рецепт уже в списке покупок'},
-                    status=status.HTTP_400_BAD_REQUEST)
-            return Response(ShoppingCartSerializer(recipe).data,
-                            status=status.HTTP_201_CREATED)
-        try:
-            ShoppingCart.objects.get(
-                user=self.request.user, recipe=recipe).delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except ObjectDoesNotExist:
-            return Response({'detail': 'Рецепта нет в списке покупок'},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-    @action(methods=('POST', 'DELETE'), detail=True,
-            permission_classes=(IsAuthenticated,))
-    def favorite(self, request, pk):
-        recipe = self.get_object()
-        if request.method == 'POST':
-            try:
-                Favorite.objects.create(
-                    user=self.request.user, recipe=recipe)
+                model.objects.create(user=request.user, recipe=recipe)
                 return Response(
                     ShoppingCartSerializer(recipe).data,
                     status=status.HTTP_201_CREATED)
             except IntegrityError:
                 return Response(
-                    {'detail': 'Рецепт уже в избранном'},
+                    {'detail': exists_message},
                     status=status.HTTP_400_BAD_REQUEST)
         try:
-            Favorite.objects.get(user=request.user, recipe=recipe).delete()
+            model.objects.get(user=request.user, recipe=recipe).delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
         except ObjectDoesNotExist:
-            return Response({'detail': 'Рецепта нет в избранном'},
+            return Response({'detail': not_found_message},
                             status=status.HTTP_400_BAD_REQUEST)
+
+    @action(methods=('POST', 'DELETE'), detail=True,
+            permission_classes=(IsAuthenticated,))
+    def shopping_cart(self, request, pk):
+        return self.handle_recipe(
+            request,
+            ShoppingCart,
+            'Рецепт уже в списке покупок',
+            'Рецепта нет в списке покупок')
+
+    @action(methods=('POST', 'DELETE'), detail=True,
+            permission_classes=(IsAuthenticated,))
+    def favorite(self, request, pk):
+        return self.handle_recipe(
+            request,
+            Favorite,
+            'Рецепт уже в избранном',
+            'Рецепта нет в избранном')
