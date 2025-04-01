@@ -1,10 +1,10 @@
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
+from django.utils.text import Truncator
 
-from core.constants import (MAX_LENGTH_RECIPE_NAME, MIN_COOKING_TIME,
-                            MIN_INGREDIENT_AMOUNT)
-from core.utils import truncate_string
+from .constants import (MAX_LENGTH_RECIPE_NAME, MIN_COOKING_TIME,
+                        MIN_INGREDIENT_AMOUNT)
 
 User = get_user_model()
 
@@ -76,7 +76,7 @@ class Recipe(models.Model):
         ordering = ('-pub_date',)
 
     def __str__(self):
-        return truncate_string(self.name, 32)
+        return Truncator(self.name).chars(40)
 
 
 class RecipeIngredient(models.Model):
@@ -111,7 +111,7 @@ class RecipeIngredient(models.Model):
 
 
 class Favorite(models.Model):
-    """Модель избранного пользователя"""
+    """Модель связи пользователя и избранных рецептов"""
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -138,7 +138,7 @@ class Favorite(models.Model):
 
 
 class ShoppingCart(models.Model):
-    """Модель списка покупок пользователя"""
+    """Модель связи пользователя и рецептов в списке покупок"""
     user = models.ForeignKey(
         User,
         related_name='shopping_cart',
@@ -157,8 +157,7 @@ class ShoppingCart(models.Model):
         verbose_name_plural = 'Списки покупок'
         constraints = [models.UniqueConstraint(
             fields=['user', 'recipe'],
-            name='unique_shopping_cart')
-        ]
+            name='unique_shopping_cart')]
 
     def __str__(self):
         return f"{self.user} добавил {self.recipe} в список покупок"

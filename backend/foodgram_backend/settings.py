@@ -25,7 +25,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'djoser',
     'django_filters',
-    'django_cleanup.apps.CleanupConfig',
+    'django_cleanup',
 
     'users.apps.UsersConfig',
     'recipes.apps.RecipesConfig',

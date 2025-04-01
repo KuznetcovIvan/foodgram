@@ -6,12 +6,6 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen.canvas import Canvas
 
 
-def truncate_string(field: str, max_len: int) -> str:
-    """Обрезает строку до заданной длины и добавляет троеточие,
-    если строка превышает максимальную длину"""
-    return field[:max_len] + '...' if len(field) > max_len else field
-
-
 def get_shopping_cart_pdf(product_list, date, request):
     """Генерирует PDF файл со списком покупок"""
     buffer = BytesIO()
@@ -36,8 +30,7 @@ def get_shopping_cart_pdf(product_list, date, request):
                          index=index + 1,
                          ingredient=product['ingredient__name'],
                          amount=product['total_amount'],
-                         unit=product['ingredient__measurement_unit']
-                     ))
+                         unit=product['ingredient__measurement_unit']))
         y -= 20
     y -= 20
     p.drawString(100, y, '*' * 50)

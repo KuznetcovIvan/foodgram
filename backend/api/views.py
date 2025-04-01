@@ -14,7 +14,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
-from core.utils import get_shopping_cart_pdf
+from recipes.utils import get_shopping_cart_pdf
 from recipes.models import (Favorite, Ingredient, Recipe, RecipeIngredient,
                             ShoppingCart, Tag)
 from users.models import Subscription, User
@@ -23,20 +23,24 @@ from .filters import IngredientFilter, RecipeFilter
 from .permissions import IsAuthorOrReadOnly
 from .serializers import (AvatarSerializer, IngredientSerializer,
                           RecipeCreateSerializer, RecipeSerializer,
-                          RecipeUpdateSerializer, ShoppingCartSerializer,
+                          RecipeUpdateSerializer,
+                          ShoppingCartFavoriteSerializer,
                           TagSerializer, UserSerializer,
                           UserWithRecipesSerializer)
 
 
 def redirect_to_recipe(request, pk):
+    """Функция перенаправляет запрос с короткого адреса на основной"""
     return redirect(reverse(
         'recipes-detail', kwargs={'pk': get_object_or_404(Recipe, pk=pk)}))
 
 
 class UserViewSet(DjoserUserViewSet):
+    """ViewSet для пользователей и подписок"""
     serializer_class = UserSerializer
 
     def get_queryset(self):
+        """Метод добавляет аннотацию is_subscribed"""
         user = self.request.user
         queryset = User.objects.all()
         if user.is_authenticated:
@@ -50,17 +54,20 @@ class UserViewSet(DjoserUserViewSet):
         return queryset
 
     def get_permissions(self):
+        """Разрешения: любые для чтения, стандартные для остальных"""
         if self.action in ('retrieve', 'list'):
             return (AllowAny(),)
         return super().get_permissions()
 
     @action(methods=('GET',), detail=False)
     def me(self, request):
+        """Для возвращения данных пользователя"""
         return Response(self.get_serializer(
             self.get_queryset().get(id=request.user.id)).data)
 
     @action(methods=('PUT', 'DELETE'), detail=False, url_path='me/avatar')
     def avatar(self, request):
+        """Добавляет или удаляет аватар пользователя"""
         user = self.get_queryset().get(id=request.user.id)
         if request.method == 'PUT':
             serializer = AvatarSerializer(user, data=request.data)
@@ -75,6 +82,7 @@ class UserViewSet(DjoserUserViewSet):
     @action(methods=('GET',), detail=False,
             permission_classes=(IsAuthenticated,))
     def subscriptions(self, request):
+        """Список подписок пользователя"""
         subscriptions = self.get_queryset().prefetch_related('recipes').filter(
             id__in=Subscription.objects.filter(subscriber=request.user).values(
                 'subscribed_to'))
@@ -97,6 +105,7 @@ class UserViewSet(DjoserUserViewSet):
     @action(methods=('POST', 'DELETE'),
             detail=True, permission_classes=(IsAuthenticated,))
     def subscribe(self, request, id):
+        """Добавляет или удаляет подписку"""
         user = self.request.user
         target_user = get_object_or_404(User, id=id)
         if user == target_user:
@@ -112,7 +121,7 @@ class UserViewSet(DjoserUserViewSet):
                     target_user, context={'request': request})
                 data = serializer.data
                 if limit:
-                    data['recipes'] = ShoppingCartSerializer(
+                    data['recipes'] = ShoppingCartFavoriteSerializer(
                         target_user.recipes.all()[:int(limit)],
                         many=True,
                         context={'request': request}).data
@@ -133,12 +142,14 @@ class UserViewSet(DjoserUserViewSet):
 
 
 class TagViewSet(ReadOnlyModelViewSet):
+    """ViewSet тегов"""
     serializer_class = TagSerializer
     queryset = Tag.objects.all()
     pagination_class = None
 
 
 class IngredientViewSet(ReadOnlyModelViewSet):
+    """ViewSet ингредиентов"""
     serializer_class = IngredientSerializer
     queryset = Ingredient.objects.all()
     pagination_class = None
@@ -147,11 +158,13 @@ class IngredientViewSet(ReadOnlyModelViewSet):
 
 
 class RecipeViewSet(ModelViewSet):
+    """ViewSet для управления рецептами"""
     filter_backends = (DjangoFilterBackend,)
     filterset_class = RecipeFilter
     permission_classes = (IsAuthorOrReadOnly,)
 
     def get_queryset(self):
+        """Добавляет аннотации is_favorited и is_in_shopping_cart"""
         queryset = (
             Recipe.objects
             .select_related('author')
@@ -171,6 +184,7 @@ class RecipeViewSet(ModelViewSet):
         return queryset
 
     def get_serializer_class(self):
+        """Выбор сериализатора по действию"""
         if self.action in ('create', 'partial_update'):
             return RecipeCreateSerializer
         elif self.action == 'update':
@@ -179,6 +193,7 @@ class RecipeViewSet(ModelViewSet):
 
     @action(methods=('GET',), detail=True, url_path='get-link')
     def get_short_link(self, request, pk):
+        """Возвращает короткую ссылку на рецепт"""
         return Response({'short-link': '{}s/{}'.format(
             request.build_absolute_uri('/'), self.get_object().id)},
             status=status.HTTP_200_OK)
@@ -186,6 +201,7 @@ class RecipeViewSet(ModelViewSet):
     @action(methods=('GET',), detail=False,
             permission_classes=(IsAuthenticated,))
     def download_shopping_cart(self, request):
+        """Для скачивания списка покупок в PDF"""
         user_recipes_in_cart = (
             ShoppingCart.objects
             .filter(user=self.request.user)
@@ -205,12 +221,13 @@ class RecipeViewSet(ModelViewSet):
             filename='to_buy_{}.pdf'.format(date.strftime('%d_%m_%Y')))
 
     def handle_recipe(self, request, model, exists_message, not_found_message):
+        """Метод для добавления или удаления рецепта в модели"""
         recipe = self.get_object()
         if request.method == 'POST':
             try:
                 model.objects.create(user=request.user, recipe=recipe)
                 return Response(
-                    ShoppingCartSerializer(recipe).data,
+                    ShoppingCartFavoriteSerializer(recipe).data,
                     status=status.HTTP_201_CREATED)
             except IntegrityError:
                 return Response(
@@ -226,6 +243,7 @@ class RecipeViewSet(ModelViewSet):
     @action(methods=('POST', 'DELETE'), detail=True,
             permission_classes=(IsAuthenticated,))
     def shopping_cart(self, request, pk):
+        """Управление списком покупок"""
         return self.handle_recipe(
             request,
             ShoppingCart,
@@ -235,6 +253,7 @@ class RecipeViewSet(ModelViewSet):
     @action(methods=('POST', 'DELETE'), detail=True,
             permission_classes=(IsAuthenticated,))
     def favorite(self, request, pk):
+        """Управление списком избранного"""
         return self.handle_recipe(
             request,
             Favorite,

@@ -7,6 +7,7 @@ from users.models import User
 
 
 class RecipeFilter(FilterSet):
+    """Фильтр рецептов по избранному, корзине, автору и тегам"""
     is_favorited = NumberFilter()
     is_in_shopping_cart = NumberFilter()
     author = ModelChoiceFilter(queryset=User.objects.all(), to_field_name='id')
@@ -22,6 +23,8 @@ class RecipeFilter(FilterSet):
 
 
 class IngredientFilter(FilterSet):
+    """Фильтр ингредиентов по началу названия
+    и совпадению в произвольном месте"""
     name = CharFilter(method='filter_name')
 
     class Meta:
