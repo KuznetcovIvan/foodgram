@@ -1,22 +1,20 @@
-from datetime import datetime as dt
-
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError
 from django.db.models import BooleanField, Exists, OuterRef, Sum, Value
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
+from django.utils import timezone as tz
 from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet as DjoserUserViewSet
+from recipes.models import (Favorite, Ingredient, Recipe, RecipeIngredient,
+                            ShoppingCart, Tag)
+from recipes.utils import get_shopping_cart_pdf
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
-
-from recipes.utils import get_shopping_cart_pdf
-from recipes.models import (Favorite, Ingredient, Recipe, RecipeIngredient,
-                            ShoppingCart, Tag)
 from users.models import Subscription, User
 
 from .filters import IngredientFilter, RecipeFilter
@@ -24,9 +22,8 @@ from .permissions import IsAuthorOrReadOnly
 from .serializers import (AvatarSerializer, IngredientSerializer,
                           RecipeCreateSerializer, RecipeSerializer,
                           RecipeUpdateSerializer,
-                          ShoppingCartFavoriteSerializer,
-                          TagSerializer, UserSerializer,
-                          UserWithRecipesSerializer)
+                          ShoppingCartFavoriteSerializer, TagSerializer,
+                          UserSerializer, UserWithRecipesSerializer)
 
 
 def redirect_to_recipe(request, pk):
@@ -214,11 +211,11 @@ class RecipeViewSet(ModelViewSet):
             .annotate(total_amount=Sum('amount'))
             .order_by('ingredient__name')
         )
-        date = dt.now()
+        date = tz.now()
         return FileResponse(
             get_shopping_cart_pdf(product_list, date, request),
             as_attachment=True,
-            filename='to_buy_{}.pdf'.format(date.strftime('%d_%m_%Y')))
+            filename='shopping-list.pdf')
 
     def handle_recipe(self, request, model, exists_message, not_found_message):
         """Метод для добавления или удаления рецепта в модели"""
