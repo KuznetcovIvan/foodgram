@@ -28,8 +28,7 @@ from .serializers import (AvatarSerializer, IngredientSerializer,
 
 def redirect_to_recipe(request, pk):
     """Функция перенаправляет запрос с короткого адреса на основной"""
-    return redirect(reverse(
-        'recipes-detail', kwargs={'pk': get_object_or_404(Recipe, pk=pk)}))
+    return redirect('/recipes/{}/'.format(get_object_or_404(Recipe, pk=pk).pk))
 
 
 class UserViewSet(DjoserUserViewSet):
