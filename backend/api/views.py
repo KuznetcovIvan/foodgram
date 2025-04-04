@@ -3,20 +3,19 @@ from django.db import IntegrityError
 from django.db.models import BooleanField, Exists, OuterRef, Sum, Value
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse
 from django.utils import timezone as tz
 from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet as DjoserUserViewSet
-from recipes.models import (Favorite, Ingredient, Recipe, RecipeIngredient,
-                            ShoppingCart, Tag)
-from recipes.utils import get_shopping_cart_pdf
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
-from users.models import Subscription, User
 
+from recipes.models import (Favorite, Ingredient, Recipe, RecipeIngredient,
+                            ShoppingCart, Tag)
+from recipes.utils import get_shopping_cart_pdf
+from users.models import Subscription, User
 from .filters import IngredientFilter, RecipeFilter
 from .permissions import IsAuthorOrReadOnly
 from .serializers import (AvatarSerializer, IngredientSerializer,
@@ -217,7 +216,7 @@ class RecipeViewSet(ModelViewSet):
             filename='shopping-list.pdf')
 
     def handle_recipe(self, request, model, exists_message, not_found_message):
-        """Метод для добавления или удаления рецепта в модели"""
+        """Метод для добавления или удаления рецепта"""
         recipe = self.get_object()
         if request.method == 'POST':
             try:
