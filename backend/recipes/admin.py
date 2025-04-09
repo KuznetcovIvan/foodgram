@@ -1,57 +1,82 @@
-from django.contrib import admin
+from .admin_filters import CookingTimeFilter, RecipesFilter
+from django.contrib.admin import ModelAdmin, TabularInline, display, register
+from django.utils.safestring import mark_safe
 
 from .models import (Favorite, Ingredient, Recipe, RecipeIngredient,
                      ShoppingCart, Tag)
 
 
-class RecipeIngredientInline(admin.TabularInline):
+class RecipeCountMixin:
+    """Миксин для показа числа рецептов"""
+    @display(description='Число рецептов')
+    def get_recipe_count(self, tag_or_ingredient):
+        return tag_or_ingredient.recipes.count()
+
+
+class RecipeIngredientInline(TabularInline):
     """Инлайн для инградиентов"""
     model = RecipeIngredient
     extra = 1
     min_num = 1
 
 
-@admin.register(Tag)
-class TagAdmin(admin.ModelAdmin):
+@register(Tag)
+class TagAdmin(ModelAdmin, RecipeCountMixin):
     """Класс для управления моделью тегов в админ-панели"""
-    list_display = ('name', 'slug')
-    search_fields = ('name',)
+    list_display = ('name', 'slug', 'get_recipe_count')
+    search_fields = ('name', 'slug')
 
 
-@admin.register(Ingredient)
-class IngredientAdmin(admin.ModelAdmin):
+@register(Ingredient)
+class IngredientAdmin(ModelAdmin, RecipeCountMixin):
     """Класс для управления моделью инградиентов в админ-панели"""
-    list_display = ('name', 'measurement_unit')
-    search_fields = ('name',)
-    list_filter = ('measurement_unit',)
+    list_display = ('name', 'measurement_unit', 'get_recipe_count')
+    search_fields = ('name', 'measurement_unit')
+    list_filter = ('measurement_unit', RecipesFilter)
 
 
-@admin.register(Recipe)
-class RecipeAdmin(admin.ModelAdmin):
+@register(Recipe)
+class RecipeAdmin(ModelAdmin):
     """Класс для управления моделью рецептов в админ-панели"""
-    list_display = ('name', 'author', 'get_favorite_count')
-    search_fields = ('name', 'author__username')
-    list_filter = ('tags',)
+    list_display = (
+        'id', 'name', 'cooking_time', 'author', 'get_tags',
+        'get_favorite_count', 'get_ingredients', 'get_image'
+    )
+    search_fields = ('name', 'author__username', 'tags__name')
+    list_filter = ('tags', 'author', CookingTimeFilter)
     inlines = (RecipeIngredientInline,)
     filter_horizontal = ('tags',)
 
-    def get_favorite_count(self, obj):
+    @display(description='Теги')
+    @mark_safe
+    def get_tags(self, recipe):
+        """Метод отображает теги рецепта"""
+        return '<br>'.join(f'<span style="color: black;">{tag.name}</span>'
+                           for tag in recipe.tags.all())
+
+    @display(description='В избранном')
+    def get_favorite_count(self, recipe):
         """Метод возвращает число добавлений рецепта в избранное"""
-        return obj.favorited_by.count()
-    get_favorite_count.short_description = 'В избранном'
+        return recipe.favorites.count()
+
+    @display(description='Продукты')
+    @mark_safe
+    def get_ingredients(self, recipe):
+        'Метод для отображения ингредиентов рецепта'
+        return '<br>'.join(f'{ing.ingredient.name} - {ing.amount} '
+                           f'{ing.ingredient.measurement_unit}'
+                           for ing in recipe.recipe_ingredients.all())
+
+    @display(description='Картинка')
+    @mark_safe
+    def get_image(self, recipe):
+        'Метод для отображения картинки рецепта'
+        return f'<img src="{recipe.image.url}" style="max-height: 100px;">'
 
 
-@admin.register(Favorite)
-class FavoriteAdmin(admin.ModelAdmin):
-    """Класс для управления моделью избранного в админ-панели"""
-    list_display = ('user', 'recipe')
-    search_fields = ('user__username', 'recipe__name')
-    list_filter = ('user', 'recipe')
-
-
-@admin.register(ShoppingCart)
-class ShoppingCartAdmin(admin.ModelAdmin):
-    """Класс для управления моделью корзины в админ-панели"""
+@register(Favorite, ShoppingCart)
+class FavoriteShoppingCartAdmin(ModelAdmin):
+    'Класс для управления моделями избранного и корзины в админ-панели'
     list_display = ('user', 'recipe')
     search_fields = ('user__username', 'recipe__name')
     list_filter = ('user', 'recipe')

@@ -1,7 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
 from django.db import models
-from django.utils.text import Truncator
 
 
 class User(AbstractUser):
@@ -23,31 +22,28 @@ class User(AbstractUser):
         ordering = ('username',)
 
     def __str__(self):
-        return Truncator(self.username).chars(20)
+        return self.username[:20]
 
 
 class Subscription(models.Model):
     """Модель подписки пользователя"""
     subscriber = models.ForeignKey(
         User,
-        related_name='following',
+        related_name='subscribers',
         verbose_name='Подписчик',
         on_delete=models.CASCADE
     )
     subscribed_to = models.ForeignKey(
         User,
-        related_name='followers',
+        related_name='authors',
         verbose_name='На кого подписан',
         on_delete=models.CASCADE
     )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name='Дата подписки')
 
     class Meta:
         verbose_name = 'подписка'
         verbose_name_plural = 'Подписки'
-        ordering = ('-created_at',)
+        ordering = ('subscriber', 'subscribed_to')
         constraints = [models.UniqueConstraint(
             fields=['subscriber', 'subscribed_to'],
             name='unique_subscription')]

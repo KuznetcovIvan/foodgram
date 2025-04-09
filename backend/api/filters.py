@@ -31,9 +31,9 @@ class IngredientFilter(FilterSet):
         model = Ingredient
         fields = ('name',)
 
-    def filter_name(self, queryset, name, value):
+    def filter_name(self, ingredients, name, value):
         if value:
-            return (queryset.filter(name__istartswith=value)
-                    | queryset.filter(name__icontains=value)
+            return (ingredients.filter(name__istartswith=value)
+                    | ingredients.filter(name__icontains=value)
                     .exclude(name__istartswith=value))
-        return queryset
+        return ingredients

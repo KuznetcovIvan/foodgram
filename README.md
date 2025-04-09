@@ -68,49 +68,18 @@
 
 ## Развёртывание проекта локально
 
-### Предварительные требования
-Перед началом работы убедитесь, что у вас установлен **Git** для клонирования репозитория.
+### Шаг 1: Клонирование репозитория
 
-### Шаг 1: Установка Docker
-#### Windows
-1. Скачайте **Docker Desktop** для Windows с [официального сайта](https://www.docker.com/products/docker-desktop).
-2. Запустите установщик и следуйте инструкциям мастера установки.
-3. После установки запустите **Docker Desktop**.
-4. Убедитесь, что **WSL 2** (Windows Subsystem for Linux) активирован на вашем компьютере.
+Клонируйте репозиторий
 
-#### macOS
-1. Скачайте **Docker Desktop** для Mac с [официального сайта](https://www.docker.com/products/docker-desktop).
-2. Перетащите приложение **Docker** в папку *Applications*.
-3. Запустите **Docker Desktop** из папки *Applications*.
+`git clone https://github.com/kuznetcovivan/foodgramm.git`
 
-#### Linux
-```bash
-# Обновление пакетов
-sudo apt-get update
-# Установка необходимых зависимостей
-sudo apt-get install apt-transport-https ca-certificates curl software-properties-common
-# Добавление GPG-ключа Docker
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-# Добавление репозитория Docker
-sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-# Установка Docker
-sudo apt-get update && sudo apt-get install docker-ce docker-compose
-# Добавление пользователя в группу docker
-sudo usermod -aG docker $USER
-# Применение изменений группы без перезагрузки
-newgrp docker
-```
+Перейдите в директорию проекта
 
-### Шаг 2: Клонирование репозитория
-```bash
-# Клонирование репозитория
-git clone https://github.com/kuznetcovivan/foodgramm.git
+`cd foodgramm`
 
-# Переход в директорию проекта
-cd foodgramm
-```
 
-### Шаг 3: Настройка переменных окружения
+### Шаг 2: Настройка переменных окружения
 Создайте файл `.env` в корне проекта со следующим содержимым:
 ```
 POSTGRES_USER=foodgram_user
@@ -123,34 +92,55 @@ DEBUG=False
 ALLOWED_HOSTS=localhost 127.0.0.1  # Input-your-domain-name-here
 DB_TYPE=postgres
 ```
-Примечание: Если файл .env не создан, проект запустится в режиме отладки (DEBUG=True) с использованием SQLite вместо PostgreSQL.
 
-### Шаг 4: Запуск приложения
-```bash
-# Запуск контейнеров
-docker-compose -f docker-compose.production.yml up -d
-# Выполнение миграций
-docker-compose -f docker-compose.production.yml exec backend python manage.py migrate
-# Сбор статических файлов
-docker-compose -f docker-compose.production.yml exec backend python manage.py collectstatic
-# Копирование статических файлов в volume
-sudo docker compose -f docker-compose.production.yml exec backend cp -r /app/collected_static/. /backend_static/static/
-# Создание суперпользователя 
-docker-compose -f docker-compose.production.yml exec backend python manage.py createsuperuser
-```
-### Шаг 5: Доступ к приложению
+### Шаг 3: Запуск приложения
+
+Запуск контейнеров
+
+`docker-compose -f docker-compose.production.yml up -d`
+
+Выполнение миграций
+
+`docker-compose -f docker-compose.production.yml exec backend python manage.py migrate`
+
+Сбор статических файлов
+
+`docker-compose -f docker-compose.production.yml exec backend python manage.py collectstatic`
+
+Копирование статических файлов в volume
+
+`sudo docker compose -f docker-compose.production.yml exec backend cp -r /app/collected_static/. /backend_static/static/`
+
+Импорт продуктов из json-фикстур
+
+`docker-compose -f docker-compose.production.yml exec backend python manage.py import_ingredients`
+
+Импорт тегов из json-фикстур
+
+`docker-compose -f docker-compose.production.yml exec backend python manage.py import_tags`
+
+Создание суперпользователя 
+
+`docker-compose -f docker-compose.production.yml exec backend python manage.py createsuperuser`
+
+
+### Шаг 4: Доступ к приложению
 - **Веб-интерфейс**: [http://localhost:9090](http://localhost:9090)
 - **Панель администратора**: [http://localhost:9090/admin/](http://localhost:9090/admin/)
+- **Документация API**: [http://localhost:9090/api/docs/](http://localhost:9090/api/docs/)
+### Шаг 5: Управление контейнерами
+Остановка контейнеров
 
-### Шаг 6: Управление контейнерами
-```bash
-# Остановка контейнеров
-docker-compose -f docker-compose.production.yml down
-# Перезапуск контейнеров
-docker-compose -f docker-compose.production.yml restart
-# Просмотр логов
-docker-compose -f docker-compose.production.yml logs -f
-```
+`docker-compose -f docker-compose.production.yml down`
+
+Перезапуск контейнеров
+
+`docker-compose -f docker-compose.production.yml restart`
+
+Просмотр логов
+
+`docker-compose -f docker-compose.production.yml logs -f`
+
 ---
 ### Если порт 9090 уже занят
 Измените порт в файле `docker-compose.production.yml`:

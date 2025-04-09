@@ -1,22 +1,26 @@
-from django.contrib import admin
+from django.conf import settings
+from django.contrib.admin import ModelAdmin, display, register, site
 from django.contrib.auth.admin import UserAdmin
-from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 
 from .models import Subscription, User
+from recipes.admin_filters import (
+    RecipesFilter, SubscriptionsFilter, FollowersFilter)
+site.site_header = 'Администрирование Foodgram'
+site.site_title = 'Foodgram Администрирование'
+site.index_title = 'Добро пожаловать в панель управления Foodgram'
+site.empty_value_display = 'Не задано'
 
-admin.site.site_header = 'Администрирование Foodgram'
-admin.site.site_title = 'Foodgram Администрирование'
-admin.site.index_title = 'Добро пожаловать в панель управления Foodgram'
-admin.site.empty_value_display = 'Не задано'
 
-
-@admin.register(User)
-class CustomUserAdmin(UserAdmin):
+@register(User)
+class ExtendedUserAdmin(UserAdmin):
     """Класс для управления моделью пользователя в админ-панели"""
-    list_display = ('username', 'email', 'first_name',
-                    'last_name', 'avatar_thumbnail')
+    list_display = (
+        'id', 'username', 'full_name', 'email', 'avatar_thumbnail',
+        'recipe_count', 'subscription_count', 'follower_count')
+
     search_fields = ('email', 'username')
-    list_filter = ('email', 'username')
+    list_filter = (RecipesFilter, SubscriptionsFilter, FollowersFilter)
     fieldsets = (
         (None, {'fields': ('username', 'email', 'password')}),
         ('Personal info', {'fields': ('first_name',
@@ -30,30 +34,47 @@ class CustomUserAdmin(UserAdmin):
         'first_name', 'last_name', 'avatar')}),)
     readonly_fields = ('avatar_preview',)
 
-    def get_avatar(self, obj, max_width):
-        """Метод возвращает HTML-код для отображения аватара пользователя"""
-        src = (obj.avatar.url if obj.avatar
-               else '/static/admin/img/default-avatar.png')
-        return format_html(
-            '''<img src="{}" style="max-width: {};
-            height: auto;"alt="Avatar" />''', src, max_width)
+    @display(description='Полное имя')
+    def full_name(self, user):
+        return f'{user.first_name} {user.last_name}'
 
-    def avatar_thumbnail(self, obj):
+    @mark_safe
+    def get_avatar(self, user, max_width):
+        """Метод возвращает HTML-код для отображения аватара пользователя"""
+        src = (user.avatar.url if user.avatar else settings.DEFAULT_AVATAR_URL)
+        return (f'<img src="{src}" style="max-width: {max_width}; '
+                f'height: auto;"alt="Avatar" />')
+
+    @display(description='Аватар')
+    def avatar_thumbnail(self, user):
         """Метод возвращает уменьшенную версию аватара
         для отображения в списке пользователей"""
-        return self.get_avatar(obj, '50px')
-    avatar_thumbnail.short_description = 'Аватар'
+        return self.get_avatar(user, '50px')
 
-    def avatar_preview(self, obj):
+    @display(description='Предпросмотр')
+    def avatar_preview(self, user):
         """Метод возвращает увеличенную версию аватара
         для предварительного просмотра"""
-        return self.get_avatar(obj, '200px')
-    avatar_preview.short_description = 'Предпросмотр'
+        return self.get_avatar(user, '200px')
+
+    @display(description='Рецепты')
+    def recipe_count(self, user):
+        """Метод возвращает количество рецептов пользователя"""
+        return user.recipes.count()
+
+    @display(description='Подписки')
+    def subscription_count(self, user):
+        """Метод возвращает количество подписок пользователя"""
+        return user.subscribers.count()
+
+    @display(description='Подписчики')
+    def follower_count(self, user):
+        """Метод возвращает количество подписчиков пользователя"""
+        return user.authors.count()
 
 
-@admin.register(Subscription)
-class SubscriptionAdmin(admin.ModelAdmin):
+@register(Subscription)
+class SubscriptionAdmin(ModelAdmin):
     """Класс для управления моделью подписок в админ-панели"""
-    list_display = ('subscriber', 'subscribed_to', 'created_at')
+    list_display = ('subscriber', 'subscribed_to')
     search_fields = ('subscriber__username', 'subscribed_to__username')
-    list_filter = ('created_at',)
