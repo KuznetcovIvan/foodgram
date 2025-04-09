@@ -97,15 +97,15 @@ DB_TYPE=postgres
 
 Запуск контейнеров
 
-`docker-compose -f docker-compose.production.yml up -d`
+`sudo docker compose -f docker-compose.production.yml up -d`
 
 Выполнение миграций
 
-`docker-compose -f docker-compose.production.yml exec backend python manage.py migrate`
+`sudo docker compose -f docker-compose.production.yml exec backend python manage.py migrate`
 
 Сбор статических файлов
 
-`docker-compose -f docker-compose.production.yml exec backend python manage.py collectstatic`
+`sudo docker compose -f docker-compose.production.yml exec backend python manage.py collectstatic`
 
 Копирование статических файлов в volume
 
@@ -113,21 +113,21 @@ DB_TYPE=postgres
 
 Импорт продуктов из json-фикстур
 
-`docker-compose -f docker-compose.production.yml exec backend python manage.py import_ingredients`
+`sudo docker compose -f docker-compose.production.yml exec backend python manage.py import_ingredients`
 
 Импорт тегов из json-фикстур
 
-`docker-compose -f docker-compose.production.yml exec backend python manage.py import_tags`
+`sudo docker compose -f docker-compose.production.yml exec backend python manage.py import_tags`
 
 Создание суперпользователя 
 
-`docker-compose -f docker-compose.production.yml exec backend python manage.py createsuperuser`
+`sudo docker compose -f docker-compose.production.yml exec backend python manage.py createsuperuser`
 
 
 ### Шаг 4: Доступ к приложению
 - **Веб-интерфейс**: [http://localhost:9090](http://localhost:9090)
 - **Панель администратора**: [http://localhost:9090/admin/](http://localhost:9090/admin/)
-- **Документация API**: [http://localhost:9090/api/docs/](http://localhost:9090/api/docs/)
+- **Документация API**: [http://localhost:9090/api/](http://localhost:9090/api/)
 ### Шаг 5: Управление контейнерами
 Остановка контейнеров
 

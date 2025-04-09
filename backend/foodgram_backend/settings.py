@@ -25,7 +25,6 @@ INSTALLED_APPS = [
     'djoser',
     'django_filters',
     'django_cleanup',
-    'users.apps.UsersConfig',
     'recipes.apps.RecipesConfig',
     'api.apps.ApiConfig'
 ]
@@ -121,7 +120,7 @@ REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
 }
 
-AUTH_USER_MODEL = 'users.User'
+AUTH_USER_MODEL = 'recipes.User'
 
 DJOSER = {
     'LOGIN_FIELD': 'email',

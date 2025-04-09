@@ -12,17 +12,29 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
-from recipes.models import (Favorite, Ingredient, Recipe, RecipeIngredient,
-                            ShoppingCart, Tag)
+from recipes.models import (
+    Favorite,
+    Ingredient,
+    Recipe,
+    RecipeIngredient,
+    ShoppingCart,
+    Subscription,
+    Tag,
+    User
+)
 from recipes.utils import get_shopping_cart_text
-from users.models import Subscription, User
-
 from .filters import IngredientFilter, RecipeFilter
 from .permissions import IsAuthorOrReadOnly
-from .serializers import (AvatarSerializer, IngredientSerializer,
-                          RecipeCreateUpdateSerializer, RecipeReadSerializer,
-                          RecipeShortSerializer, TagSerializer, UserSerializer,
-                          UserWithRecipesSerializer)
+from .serializers import (
+    AvatarSerializer,
+    IngredientSerializer,
+    RecipeCreateUpdateSerializer,
+    RecipeReadSerializer,
+    RecipeShortSerializer,
+    TagSerializer,
+    UserSerializer,
+    UserWithRecipesSerializer
+)
 
 
 class UserViewSet(DjoserUserViewSet):

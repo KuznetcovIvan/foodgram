@@ -1,11 +1,12 @@
 from djoser.serializers import UserSerializer as DjoserUserSerializer
 from rest_framework import serializers
 
-from recipes.constants import (MAX_LENGTH_RECIPE_NAME, MIN_COOKING_TIME,
-                               MIN_INGREDIENT_AMOUNT)
-from recipes.models import Ingredient, Recipe, RecipeIngredient, Tag
-from users.models import User
-
+from recipes.constants import (
+    MAX_LENGTH_RECIPE_NAME,
+    MIN_COOKING_TIME,
+    MIN_INGREDIENT_AMOUNT
+)
+from recipes.models import Ingredient, Recipe, RecipeIngredient, Tag, User
 from .fields import Base64ImageField
 
 
