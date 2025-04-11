@@ -8,9 +8,10 @@ class BaseFilter(SimpleListFilter):
     title = ''
     parameter_name = ''
     relation_field = ''
+    LOOKUPS = (('yes', 'Да'), ('no', 'Нет'))
 
     def lookups(self, request, model_admin):
-        return (('yes', 'Да'), ('no', 'Нет'))
+        return self.LOOKUPS
 
     def queryset(self, request, queryset):
         if self.value() == 'yes':
@@ -47,41 +48,45 @@ class CookingTimeFilter(SimpleListFilter):
     title = 'Время готовки'
     parameter_name = 'cooking_time'
 
-    def get_max_times_and_thresholds(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.time_ranges = None
+
+    def get_time_ranges(self):
+        """Возвращает словарь диапазонов времени готовки"""
         times = Recipe.objects.values_list('cooking_time', flat=True)
-        if not times:
-            return None, None, None
-        max_times = max(times)
-        fast_threshold = int(max_times / 3)
-        medium_threshold = int(2 * max_times / 3)
-        return max_times, fast_threshold, medium_threshold
+        if len(set(times)) <= 1:
+            return None
+        max_time = max(times)
+        fast_threshold = max_time // 3
+        medium_threshold = (2 * max_time) // 3
+        return {
+            'fast': (0, fast_threshold),
+            'medium': (fast_threshold + 1, medium_threshold),
+            'long': (medium_threshold + 1, max_time)}
+
+    def filter_by_range(self, recipes, time_range):
+        """Фильтрация рецептов по диапазону времени готовки"""
+        return recipes.filter(cooking_time__range=time_range)
 
     def lookups(self, request, model_admin):
-        max_times, fast_threshold, medium_threshold = (
-            self.get_max_times_and_thresholds())
-        if max_times is None:
+        self.time_ranges = self.get_time_ranges()
+        if not self.time_ranges:
             return None
-        fast_count = Recipe.objects.filter(
-            cooking_time__lte=fast_threshold).count()
-        medium_count = Recipe.objects.filter(
-            cooking_time__gt=fast_threshold,
-            cooking_time__lte=medium_threshold).count()
-        long_count = Recipe.objects.filter(
-            cooking_time__gt=medium_threshold).count()
+        fast_count = self.filter_by_range(
+            Recipe.objects, self.time_ranges['fast']).count()
+        medium_count = self.filter_by_range(
+            Recipe.objects, self.time_ranges['medium']).count()
+        long_count = self.filter_by_range(
+            Recipe.objects, self.time_ranges['long']).count()
+        fast_threshold = self.time_ranges['fast'][1]
+        medium_threshold = self.time_ranges['medium'][1]
         return (
             ('fast', f'Быстрее {fast_threshold} мин ({fast_count})'),
             ('medium', f'Быстрее {medium_threshold} мин ({medium_count})'),
-            ('long', f'Долго ({long_count})'))
+            ('long', f'Долго ({long_count})'),)
 
-    def queryset(self, request, queryset):
-        _, fast_threshold, medium_threshold = (
-            self.get_max_times_and_thresholds())
-        if self.value() == 'fast':
-            return queryset.filter(cooking_time__lte=fast_threshold)
-        if self.value() == 'medium':
-            return queryset.filter(
-                cooking_time__gt=fast_threshold,
-                cooking_time__lte=medium_threshold)
-        if self.value() == 'long':
-            return queryset.filter(cooking_time__gt=medium_threshold)
-        return queryset
+    def queryset(self, request, recipes):
+        if not self.value():
+            return recipes
+        return self.filter_by_range(recipes, self.time_ranges[self.value()])

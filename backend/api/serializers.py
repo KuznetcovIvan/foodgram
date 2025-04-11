@@ -1,11 +1,9 @@
+from collections import Counter
+
 from djoser.serializers import UserSerializer as DjoserUserSerializer
 from rest_framework import serializers
 
-from recipes.constants import (
-    MAX_LENGTH_RECIPE_NAME,
-    MIN_COOKING_TIME,
-    MIN_INGREDIENT_AMOUNT
-)
+from recipes.constants import MIN_INGREDIENT_AMOUNT
 from recipes.models import Ingredient, Recipe, RecipeIngredient, Tag, User
 from .fields import Base64ImageField
 
@@ -38,11 +36,13 @@ class UserWithRecipesSerializer(UserSerializer):
 
     def get_recipes(self, obj):
         """Получает рецепты с учетом лимита"""
-        limit = self.context.get('request').query_params.get('recipes_limit')
-        recipes = (obj.recipes.all()[:int(limit)]
-                   if limit else obj.recipes.all())
         return RecipeShortSerializer(
-            recipes, many=True, context=self.context).data
+            obj.recipes.all()[:int(
+                self.context['request'].GET.get('recipes_limit', 10**10)
+            )],
+            many=True,
+            context=self.context
+        ).data
 
 
 class AvatarSerializer(serializers.ModelSerializer):
@@ -100,15 +100,16 @@ class RecipeReadSerializer(serializers.ModelSerializer):
                   'name', 'image', 'text', 'cooking_time')
         read_only_fields = fields
 
-    def get_is_favorited(self, recipe):
+    def check_status(self, recipe, related_name):
         user = self.context['request'].user
-        return user.is_authenticated and user.favorites.filter(
+        return user.is_authenticated and getattr(user, related_name).filter(
             recipe=recipe).exists()
 
+    def get_is_favorited(self, recipe):
+        return self.check_status(recipe, 'favorites')
+
     def get_is_in_shopping_cart(self, recipe):
-        user = self.context['request'].user
-        return user.is_authenticated and user.cart_items.filter(
-            recipe=recipe).exists()
+        return self.check_status(recipe, 'cart_items')
 
 
 class IngredientInRecipeReadSerializer(serializers.Serializer):
@@ -117,17 +118,12 @@ class IngredientInRecipeReadSerializer(serializers.Serializer):
     amount = serializers.IntegerField(min_value=MIN_INGREDIENT_AMOUNT)
 
 
-class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
+class RecipeWriteSerializer(serializers.ModelSerializer):
     """Сериализатор создания и изменения рецепта"""
     ingredients = IngredientInRecipeReadSerializer(many=True, required=True)
     tags = serializers.PrimaryKeyRelatedField(
         queryset=Tag.objects.all(), many=True, required=True)
     image = Base64ImageField(required=False)
-    name = serializers.CharField(
-        max_length=MAX_LENGTH_RECIPE_NAME, required=True)
-    text = serializers.CharField(required=True)
-    cooking_time = serializers.IntegerField(
-        min_value=MIN_COOKING_TIME, required=True)
 
     class Meta:
         model = Recipe
@@ -139,7 +135,8 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         if not items:
             raise serializers.ValidationError(
                 f'Список {name} не может быть пустым')
-        duplicates = [item for item in set(items) if items.count(item) > 1]
+        duplicates = [
+            item for item, count in Counter(items).items() if count > 1]
         if duplicates:
             raise serializers.ValidationError(
                 f'В списке {name} имеются дубликаты: {duplicates}')
@@ -147,8 +144,9 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
 
     def validate_ingredients(self, ingredients):
         """Проверка: ингредиенты не пустые и уникальные"""
-        ingredient_ids = [ingredient['id'].id for ingredient in ingredients]
-        self.items_validate(ingredient_ids, 'ингредиентов')
+        self.items_validate(
+            [ingredient['id'].id for ingredient in ingredients],
+            'ингредиентов')
         return ingredients
 
     def validate_tags(self, tags):
@@ -173,30 +171,33 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         перенаправляет на RecipeReadSerializer"""
         return RecipeReadSerializer(instance, context=self.context).data
 
-    def save_recipe(self, recipe, validated_data):
-        """Метод для сохранения рецепта с тегами и ингредиентами"""
+    def extract_tags_and_ingredients(self, validated_data):
+        """Извлекает теги и ингредиенты из validated_data"""
         ingredients = validated_data.pop('ingredients')
         tags = validated_data.pop('tags')
-        if recipe.pk:
-            recipe = super().update(recipe, validated_data)
-        else:
-            validated_data['author'] = self.context['request'].user
-            recipe = super().create(validated_data)
+        return tags, ingredients
+
+    def update_tags_and_ingredients(self, recipe, tags, ingredients):
+        """Обновляет теги и ингредиенты рецепта"""
         recipe.tags.set(tags)
         recipe.recipe_ingredients.all().delete()
         RecipeIngredient.objects.bulk_create(
-            [RecipeIngredient(
+            RecipeIngredient(
                 recipe=recipe,
                 ingredient=ingredient['id'],
-                amount=ingredient['amount'])
-                for ingredient in ingredients])
-        return recipe
+                amount=ingredient['amount']
+            ) for ingredient in ingredients)
 
     def create(self, validated_data):
         """Создание нового рецепта"""
-        return self.save_recipe(
-            Recipe(author=self.context['request'].user), validated_data)
+        tags, ingredients = self.extract_tags_and_ingredients(validated_data)
+        validated_data['author'] = self.context['request'].user
+        recipe = super().create(validated_data)
+        self.update_tags_and_ingredients(recipe, tags, ingredients)
+        return recipe
 
     def update(self, instance, validated_data):
         """Обновление рецепта"""
-        return self.save_recipe(instance, validated_data)
+        tags, ingredients = self.extract_tags_and_ingredients(validated_data)
+        self.update_tags_and_ingredients(instance, tags, ingredients)
+        return super().update(instance, validated_data)

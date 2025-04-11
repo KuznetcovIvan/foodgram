@@ -1,5 +1,5 @@
 from django.db.models import BooleanField, Exists, OuterRef, Sum, Value
-from django.http import HttpResponse
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils import timezone as tz
@@ -28,7 +28,7 @@ from .permissions import IsAuthorOrReadOnly
 from .serializers import (
     AvatarSerializer,
     IngredientSerializer,
-    RecipeCreateUpdateSerializer,
+    RecipeWriteSerializer,
     RecipeReadSerializer,
     RecipeShortSerializer,
     TagSerializer,
@@ -62,14 +62,13 @@ class UserViewSet(DjoserUserViewSet):
     def avatar(self, request):
         """Добавляет или удаляет аватар пользователя"""
         user = self.get_queryset().get(id=request.user.id)
-        if request.method == 'PUT':
-            serializer = AvatarSerializer(user, data=request.data)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            return Response(
-                {'avatar': user.avatar.url}, status=status.HTTP_200_OK)
-        user.avatar.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        if request.method == 'DELETE':
+            user.avatar.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        serializer = AvatarSerializer(user, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'avatar': user.avatar.url}, status=status.HTTP_200_OK)
 
     @action(methods=('GET',), detail=False,
             permission_classes=(IsAuthenticated,))
@@ -88,23 +87,24 @@ class UserViewSet(DjoserUserViewSet):
             detail=True, permission_classes=(IsAuthenticated,))
     def subscribe(self, request, id):
         """Добавляет или удаляет подписку"""
-        user = self.request.user
+        user = request.user
         author = get_object_or_404(User, id=id)
         if user == author:
             raise ValidationError(
-                {'detail': 'Нельзя подписаться или отписаться от самого себя'})
-        if request.method == 'POST':
-            if Subscription.objects.filter(
-                    subscriber=user, subscribed_to=author).exists():
-                raise ValidationError(
-                    {'detail': 'Вы уже подписаны на этого пользователя'})
-            Subscription.objects.create(subscriber=user, subscribed_to=author)
-            return Response(UserWithRecipesSerializer(
-                author, context={'request': request}).data,
-                status=status.HTTP_201_CREATED)
-        get_object_or_404(
-            Subscription, subscriber=user, subscribed_to=author).delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+                {'detail': 'Нельзя подписаться или отписаться на самого себя'})
+        if request.method == 'DELETE':
+            subscription = get_object_or_404(
+                Subscription, subscriber=user, subscribed_to=author)
+            subscription.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        _, created = Subscription.objects.get_or_create(
+            subscriber=user, subscribed_to=author)
+        if not created:
+            raise ValidationError(
+                {'detail': f'Вы уже подписаны на {author.username}'})
+        return Response(UserWithRecipesSerializer(
+            author, context={'request': request}).data,
+            status=status.HTTP_201_CREATED)
 
 
 class TagViewSet(ReadOnlyModelViewSet):
@@ -153,24 +153,23 @@ class RecipeViewSet(ModelViewSet):
     def get_serializer_class(self):
         """Выбор сериализатора по действию"""
         if self.action in ('create', 'update', 'partial_update'):
-            return RecipeCreateUpdateSerializer
+            return RecipeWriteSerializer
         return RecipeReadSerializer
 
     @action(methods=('GET',), detail=True, url_path='get-link')
     def get_short_link(self, request, pk):
         """Возвращает короткую ссылку на рецепт"""
+        if not Recipe.objects.filter(pk=pk).exists():
+            raise Http404(f'Рецепта с pk={pk} не существует')
         return Response({'short-link': request.build_absolute_uri(
-            reverse('recipes:redirect-to-recipe', kwargs={'pk': pk}))})
+            reverse('recipes:redirect-to-recipe', args=[pk]))})
 
     @action(methods=('GET',), detail=False,
             permission_classes=(IsAuthenticated,))
     def download_shopping_cart(self, request):
         """Для скачивания списка покупок"""
         user_recipes_in_cart = (
-            ShoppingCart.objects
-            .filter(user=self.request.user)
-            .values_list('recipe', flat=True)
-        )
+            self.request.user.cart_items.values_list('recipe', flat=True))
         product_list = list(
             RecipeIngredient.objects
             .filter(recipe__in=user_recipes_in_cart)
@@ -180,26 +179,27 @@ class RecipeViewSet(ModelViewSet):
         )
         recipes = Recipe.objects.filter(id__in=user_recipes_in_cart)
         date = tz.now().strftime('%d-%m-%Y')
-        return HttpResponse(
+        return FileResponse(
             get_shopping_cart_text(product_list, recipes),
             content_type='text/plain',
-            headers={'Content-Disposition':
-                     f'attachment; filename="shopping-list-{date}.txt"'})
+            filename=f'shopping-list-{date}.txt')
 
     def handle_recipe(self, request, model):
-        """Метод для добавления или удаления рецепта"""
+        """Обработчик POST/DELETE-запросов для управления
+        связью пользователя и рецепта"""
         recipe = self.get_object()
-        if request.method == 'POST':
-            if model.objects.filter(user=request.user, recipe=recipe).exists():
-                raise ValidationError(
-                    {'detail':
-                        f'Рецепт уже добавлен в {model._meta.verbose_name}'})
-            model.objects.create(user=request.user, recipe=recipe)
-            return Response(
-                RecipeShortSerializer(recipe).data,
-                status=status.HTTP_201_CREATED)
-        get_object_or_404(model, user=request.user, recipe=recipe).delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        if request.method == 'DELETE':
+            get_object_or_404(model, user=request.user, recipe=recipe).delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        _, created = model.objects.get_or_create(
+            user=request.user, recipe=recipe)
+        if not created:
+            raise ValidationError(
+                {'detail': f'Рецепт "{recipe.name}" (ID: {recipe.id}) '
+                 f'уже добавлен в {model._meta.verbose_name}'})
+        return Response(
+            RecipeShortSerializer(recipe).data,
+            status=status.HTTP_201_CREATED)
 
     @action(methods=('POST', 'DELETE'), detail=True,
             permission_classes=(IsAuthenticated,))

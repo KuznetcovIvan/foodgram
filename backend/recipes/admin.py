@@ -7,6 +7,7 @@ from django.contrib.admin import (
     site
 )
 from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.models import Group
 from django.utils.safestring import mark_safe
 
 from .admin_filters import (
@@ -31,13 +32,24 @@ site.site_title = 'Foodgram Администрирование'
 site.index_title = 'Добро пожаловать в панель управления Foodgram'
 site.empty_value_display = 'Не задано'
 
+site.unregister(Group)
+
+
+class RecipeCountMixin:
+    """Миксин для показа числа рецептов"""
+    list_display = ('get_recipe_count',)
+
+    @display(description='Число рецептов')
+    def get_recipe_count(self, obj):
+        return obj.recipes.count()
+
 
 @register(User)
-class ExtendedUserAdmin(UserAdmin):
+class ExtendedUserAdmin(UserAdmin, RecipeCountMixin):
     """Класс для управления моделью пользователя в админ-панели"""
     list_display = (
         'id', 'username', 'full_name', 'email', 'avatar_thumbnail',
-        'recipe_count', 'subscription_count', 'follower_count')
+        'subscription_count', 'follower_count', *RecipeCountMixin.list_display)
 
     search_fields = ('email', 'username')
     list_filter = (RecipesFilter, SubscriptionsFilter, FollowersFilter)
@@ -63,24 +75,17 @@ class ExtendedUserAdmin(UserAdmin):
         """Метод возвращает HTML-код для отображения аватара пользователя"""
         src = (user.avatar.url if user.avatar else settings.DEFAULT_AVATAR_URL)
         return (f'<img src="{src}" style="max-width: {max_width}; '
-                f'height: auto;"alt="Avatar" />')
+                f'height: auto;" alt="Avatar" />')
 
     @display(description='Аватар')
     def avatar_thumbnail(self, user):
-        """Метод возвращает уменьшенную версию аватара
-        для отображения в списке пользователей"""
+        """Метод возвращает уменьшенную версию аватара"""
         return self.get_avatar(user, '50px')
 
     @display(description='Предпросмотр')
     def avatar_preview(self, user):
-        """Метод возвращает увеличенную версию аватара
-        для предварительного просмотра"""
+        """Метод возвращает увеличенную версию аватара"""
         return self.get_avatar(user, '200px')
-
-    @display(description='Рецепты')
-    def recipe_count(self, user):
-        """Метод возвращает количество рецептов пользователя"""
-        return user.recipes.count()
 
     @display(description='Подписки')
     def subscription_count(self, user):
@@ -100,15 +105,8 @@ class SubscriptionAdmin(ModelAdmin):
     search_fields = ('subscriber__username', 'subscribed_to__username')
 
 
-class RecipeCountMixin:
-    """Миксин для показа числа рецептов"""
-    @display(description='Число рецептов')
-    def get_recipe_count(self, tag_or_ingredient):
-        return tag_or_ingredient.recipes.count()
-
-
 class RecipeIngredientInline(TabularInline):
-    """Инлайн для инградиентов"""
+    """Инлайн для ингредиентов"""
     model = RecipeIngredient
     extra = 1
     min_num = 1
@@ -117,14 +115,14 @@ class RecipeIngredientInline(TabularInline):
 @register(Tag)
 class TagAdmin(ModelAdmin, RecipeCountMixin):
     """Класс для управления моделью тегов в админ-панели"""
-    list_display = ('name', 'slug', 'get_recipe_count')
+    list_display = ('name', 'slug', *RecipeCountMixin.list_display)
     search_fields = ('name', 'slug')
 
 
 @register(Ingredient)
 class IngredientAdmin(ModelAdmin, RecipeCountMixin):
-    """Класс для управления моделью инградиентов в админ-панели"""
-    list_display = ('name', 'measurement_unit', 'get_recipe_count')
+    """Класс для управления моделью ингредиентов в админ-панели"""
+    list_display = ('name', 'measurement_unit', *RecipeCountMixin.list_display)
     search_fields = ('name', 'measurement_unit')
     list_filter = ('measurement_unit', RecipesFilter)
 
@@ -145,8 +143,7 @@ class RecipeAdmin(ModelAdmin):
     @mark_safe
     def get_tags(self, recipe):
         """Метод отображает теги рецепта"""
-        return '<br>'.join(f'<span style="color: blue;">{tag.name}</span>'
-                           for tag in recipe.tags.all())
+        return '<br>'.join(tag.name for tag in recipe.tags.all())
 
     @display(description='В избранном')
     def get_favorite_count(self, recipe):
@@ -156,7 +153,7 @@ class RecipeAdmin(ModelAdmin):
     @display(description='Продукты')
     @mark_safe
     def get_ingredients(self, recipe):
-        'Метод для отображения ингредиентов рецепта'
+        """Метод для отображения ингредиентов рецепта"""
         return '<br>'.join(f'{ing.ingredient.name} - {ing.amount} '
                            f'{ing.ingredient.measurement_unit}'
                            for ing in recipe.recipe_ingredients.all())
@@ -164,13 +161,13 @@ class RecipeAdmin(ModelAdmin):
     @display(description='Картинка')
     @mark_safe
     def get_image(self, recipe):
-        'Метод для отображения картинки рецепта'
+        """Метод для отображения картинки рецепта"""
         return f'<img src="{recipe.image.url}" style="max-height: 100px;">'
 
 
 @register(Favorite, ShoppingCart)
 class FavoriteShoppingCartAdmin(ModelAdmin):
-    'Класс для управления моделями избранного и корзины в админ-панели'
+    """Класс для управления моделями избранного и корзины в админ-панели"""
     list_display = ('user', 'recipe')
     search_fields = ('user__username', 'recipe__name')
     list_filter = ('user', 'recipe')

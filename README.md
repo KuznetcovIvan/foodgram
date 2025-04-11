@@ -123,11 +123,11 @@ DB_TYPE=postgres
 
 `sudo docker compose -f docker-compose.production.yml exec backend python manage.py createsuperuser`
 
-
 ### Шаг 4: Доступ к приложению
-- **Веб-интерфейс**: [http://localhost:9090](http://localhost:9090)
-- **Панель администратора**: [http://localhost:9090/admin/](http://localhost:9090/admin/)
-- **Документация API**: [http://localhost:9090/api/](http://localhost:9090/api/)
+- [Веб-интерфейс](http://localhost:9090)
+- [Панель администратора](http://localhost:9090/admin/)
+- [Документация API](http://localhost:9090/api/docs/)
+
 ### Шаг 5: Управление контейнерами
 Остановка контейнеров
 

@@ -100,7 +100,7 @@ class Recipe(models.Model):
         Ingredient, through='RecipeIngredient', verbose_name='Ингредиенты')
     tags = models.ManyToManyField(Tag, verbose_name='Теги')
     cooking_time = models.PositiveIntegerField(
-        'Время приготовления (в минутах)',
+        'Время (мин)',
         validators=(MinValueValidator(MIN_COOKING_TIME),))
     pub_date = models.DateTimeField('Дата публикации', auto_now_add=True)
 
@@ -124,8 +124,8 @@ class RecipeIngredient(models.Model):
         'Мера', validators=[MinValueValidator(MIN_INGREDIENT_AMOUNT)])
 
     class Meta:
-        verbose_name = 'продукт'
-        verbose_name_plural = 'Продукты'
+        verbose_name = 'продукт в рецепте'
+        verbose_name_plural = 'Продукты в рецепте'
         default_related_name = 'recipe_ingredients'
         constraints = [models.UniqueConstraint(
             fields=['recipe', 'ingredient'],
@@ -154,7 +154,7 @@ class UserRecipeBaseModel(models.Model):
 
 class Favorite(UserRecipeBaseModel):
     """Модель связи пользователя и избранных рецептов"""
-    class Meta:
+    class Meta(UserRecipeBaseModel.Meta):
         verbose_name = 'избранное'
         verbose_name_plural = 'Избранное'
         default_related_name = 'favorites'
@@ -162,7 +162,7 @@ class Favorite(UserRecipeBaseModel):
 
 class ShoppingCart(UserRecipeBaseModel):
     """Модель связи пользователя и рецептов в списке покупок"""
-    class Meta:
+    class Meta(UserRecipeBaseModel.Meta):
         verbose_name = 'список покупок'
         verbose_name_plural = 'Списки покупок'
         default_related_name = 'cart_items'
