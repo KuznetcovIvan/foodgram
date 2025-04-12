@@ -8,22 +8,16 @@ SHOPPING_CART_TEMPLATE = (
     'Составлен на основании рецептов:\n'
     '{recipes}'
 )
-UNIT_SHORTCUTS = {
-    'банка': 'бан', 'батон': 'бат', 'веточка': 'вет',
-    'горсть': 'гор', 'капля': 'кап', 'кусок': 'кус',
-    'стакан': 'стак', 'щепотка': 'щеп'
-}
 
 
 def get_shopping_cart_text(product_list, recipes):
     """Генерирует текст со списком покупок"""
     date = format_date(tz.now(), format='d MMMM yyyy', locale='ru')
-    products = '\n'.join(['{}. {} - {} {}.'.format(
+    products = '\n'.join(['{}. {} ({}) - {}.'.format(
         index,
         product['ingredient__name'].capitalize(),
-        product['total_amount'],
-        UNIT_SHORTCUTS.get(product['ingredient__measurement_unit'],
-                           product['ingredient__measurement_unit']))
+        product['ingredient__measurement_unit'],
+        product['total_amount'])
         for index, product in enumerate(product_list, start=1)])
     recipes_list = '\n'.join(['{}. {} (@{})'.format(
         index,

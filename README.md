@@ -1,6 +1,12 @@
 ![Платформа для хранения рецептов](frontend/src/images/logo.png)
 
-[![Платформа для хранения рецептов](https://img.shields.io/badge/Платформа%20для%20хранения%20рецептов-FF9900?style=for-the-badge)](http://food-gram.hopto.org)
+<a href="http://food-gram.hopto.org" target="_blank" rel="noopener noreferrer">
+  <img 
+    src="https://img.shields.io/badge/ПЛАТФОРМА_ДЛЯ_ХРАНЕНИЯ_РЕЦЕПТОВ-orange?style=flat&logo=fastapi&logoColor=white" 
+    alt="Платформа для хранения рецептов" 
+    style="height:30px; border-radius: 8px;"
+  >
+</a>
 
 [![Django](https://img.shields.io/badge/Django-3.2-green)](https://www.djangoproject.com/)
 [![React](https://img.shields.io/badge/React-18-blue)](https://reactjs.org/)
@@ -9,14 +15,13 @@
 
 [![Main Foodgram workflow](https://github.com/KuznetcovIvan/foodgram/actions/workflows/main.yml/badge.svg)](https://github.com/KuznetcovIvan/foodgram/actions/workflows/main.yml)
 
----
-
-## О проекте
-**FOODGRAM** — это веб-платформа, где пользователи могут создавать, хранить и делиться кулинарными рецептами. Проект разработан в рамках обучения и включает полный функционал для удобного ведения базы рецептов, списка покупок и избранных блюд.
+Это веб-платформа, где пользователи могут создавать, хранить и делиться кулинарными рецептами. Проект разработан в рамках обучения и включает полный функционал для удобного ведения базы рецептов, списка покупок и избранных блюд.
 
 ---
+![Страница Foodgram](./images/foodgram.png)
+---
 
-## Функциональность
+## Возможности
 
 ### Для всех пользователей
 - Просмотр главной страницы с рецептами
@@ -68,19 +73,17 @@
 
 ## Развёртывание проекта локально
 
-### Шаг 1: Клонирование репозитория
-
-Клонируйте репозиторий
+1. Клонируйте репозиторий
 
 `git clone https://github.com/kuznetcovivan/foodgramm.git`
 
-Перейдите в директорию проекта
+2. Перейдите в директорию проекта
 
 `cd foodgramm`
 
+3. Настройте переменные окружения
 
-### Шаг 2: Настройка переменных окружения
-Создайте файл `.env` в корне проекта со следующим содержимым:
+ Создайте файл `.env` в корне проекта со следующим содержимым:
 ```
 POSTGRES_USER=foodgram_user
 POSTGRES_PASSWORD=foodgram_password
@@ -93,55 +96,56 @@ ALLOWED_HOSTS=localhost 127.0.0.1  # Input-your-domain-name-here
 DB_TYPE=postgres
 ```
 
-### Шаг 3: Запуск приложения
+4. Запустите приложение
 
-Запуск контейнеров
+- Запустите контейнеры
 
 `sudo docker compose -f docker-compose.production.yml up -d`
 
-Выполнение миграций
+- Выполните миграций
 
 `sudo docker compose -f docker-compose.production.yml exec backend python manage.py migrate`
 
-Сбор статических файлов
+- Соберите статические файлы
 
 `sudo docker compose -f docker-compose.production.yml exec backend python manage.py collectstatic`
 
-Копирование статических файлов в volume
+- Скопируйте статические файлы в volume
 
 `sudo docker compose -f docker-compose.production.yml exec backend cp -r /app/collected_static/. /backend_static/static/`
 
-Импорт продуктов из json-фикстур
+- Импортируйте продукты из json-фикстур
 
 `sudo docker compose -f docker-compose.production.yml exec backend python manage.py import_ingredients`
 
-Импорт тегов из json-фикстур
+- Импортируйте теги из json-фикстур
 
 `sudo docker compose -f docker-compose.production.yml exec backend python manage.py import_tags`
 
-Создание суперпользователя 
+- Создайте суперпользователя 
 
 `sudo docker compose -f docker-compose.production.yml exec backend python manage.py createsuperuser`
 
-### Шаг 4: Доступ к приложению
+5. Вам доступно:
 - [Веб-интерфейс](http://localhost:9090)
 - [Панель администратора](http://localhost:9090/admin/)
 - [Документация API](http://localhost:9090/api/docs/)
 
-### Шаг 5: Управление контейнерами
-Остановка контейнеров
+6. Управление контейнерами
+- Для остановки контейнеров
 
 `docker-compose -f docker-compose.production.yml down`
 
-Перезапуск контейнеров
+- Для перезапуска контейнеров
 
 `docker-compose -f docker-compose.production.yml restart`
 
-Просмотр логов
+- Для просмотр логов
 
 `docker-compose -f docker-compose.production.yml logs -f`
 
 ---
+
 ### Если порт 9090 уже занят
 Измените порт в файле `docker-compose.production.yml`:
 ```yaml

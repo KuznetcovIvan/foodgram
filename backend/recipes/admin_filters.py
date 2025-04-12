@@ -50,43 +50,53 @@ class CookingTimeFilter(SimpleListFilter):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.time_ranges = None
+        self.ranges = None
+        self.fast = None
+        self.medium = None
 
-    def get_time_ranges(self):
-        """Возвращает словарь диапазонов времени готовки"""
+    def set_ranges(self):
+        """Определяет диапазоны времени готовки и сохраняет их в экземпляре"""
         times = Recipe.objects.values_list('cooking_time', flat=True)
-        if len(set(times)) <= 1:
-            return None
+        if len(set(times)) < 3:
+            return
         max_time = max(times)
-        fast_threshold = max_time // 3
-        medium_threshold = (2 * max_time) // 3
-        return {
-            'fast': (0, fast_threshold),
-            'medium': (fast_threshold + 1, medium_threshold),
-            'long': (medium_threshold + 1, max_time)}
+        self.fast = max_time // 3
+        self.medium = (2 * max_time) // 3
+        self.ranges = {
+            'fast': (0, self.fast),
+            'medium': (self.fast + 1, self.medium),
+            'long': (self.medium + 1, max_time)
+        }
 
-    def filter_by_range(self, recipes, time_range):
+    def filter_by_range(self, key, recipes=None):
         """Фильтрация рецептов по диапазону времени готовки"""
-        return recipes.filter(cooking_time__range=time_range)
+        recipes = recipes or Recipe.objects
+        return recipes.filter(cooking_time__range=self.ranges[key])
 
     def lookups(self, request, model_admin):
-        self.time_ranges = self.get_time_ranges()
-        if not self.time_ranges:
-            return None
-        fast_count = self.filter_by_range(
-            Recipe.objects, self.time_ranges['fast']).count()
-        medium_count = self.filter_by_range(
-            Recipe.objects, self.time_ranges['medium']).count()
-        long_count = self.filter_by_range(
-            Recipe.objects, self.time_ranges['long']).count()
-        fast_threshold = self.time_ranges['fast'][1]
-        medium_threshold = self.time_ranges['medium'][1]
+        self.set_ranges()
+        if not self.ranges:
+            return []
         return (
-            ('fast', f'Быстрее {fast_threshold} мин ({fast_count})'),
-            ('medium', f'Быстрее {medium_threshold} мин ({medium_count})'),
-            ('long', f'Долго ({long_count})'),)
+            (
+                'fast',
+                f'Быстрее {self.fast} мин '
+                f'({self.filter_by_range("fast").count()})'
+            ),
+            (
+                'medium',
+                f'Быстрее {self.medium} мин '
+                f'({self.filter_by_range("medium").count()})'
+            ),
+            (
+                'long',
+                f'Долго '
+                f'({self.filter_by_range("long").count()})'
+            ),
+        )
 
     def queryset(self, request, recipes):
+        self.set_ranges()
         if not self.value():
             return recipes
-        return self.filter_by_range(recipes, self.time_ranges[self.value()])
+        return self.filter_by_range(self.value(), recipes)
